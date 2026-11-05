@@ -11,6 +11,7 @@
 | [RAG 设计](04-rag-and-answering.md) | 检索流程、Agent 工具、证据和答案 |
 | [评测与实验](05-evaluation.md) | 数据集格式、实验矩阵、指标和门禁 |
 | [API 与实施计划](06-api-and-roadmap.md) | API、后台页面、开发里程碑 |
+| [向量与混合检索](11-hybrid-retrieval.md) | 模型适配、持久构建、pgvector、RRF、TokenHub 配置 |
 | [知识版本与检索基线](10-knowledge-retrieval.md) | 冻结清单、中文检索、证据补全与边界 |
 | [PDF 入库运行手册](09-pdf-ingestion.md) | 上传、队列、解析、审核与失败恢复 |
 | [后端实现进度](08-backend-progress.md) | 实际完成范围与验证入口 |

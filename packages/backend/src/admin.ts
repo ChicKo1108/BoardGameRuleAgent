@@ -1,6 +1,10 @@
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
-import { adminSchemas as s, knowledgeSchemas as k } from "@boardgame/contracts";
+import {
+  adminSchemas as s,
+  knowledgeSchemas as k,
+  vectorSchemas as v,
+} from "@boardgame/contracts";
 import {
   KnowledgeRepository,
   GameEntity,
@@ -14,8 +18,13 @@ import type { DataSource, EntityManager } from "typeorm";
 
 import { IngestionError, type IngestionService } from "./ingestion.ts";
 import { parserResultSchema } from "./parser.ts";
-import { KnowledgeIndexService, RetrievalError } from "@boardgame/retrieval";
+import {
+  KnowledgeIndexService,
+  RetrievalError,
+  EmbeddingError,
+} from "@boardgame/retrieval";
 
+import type { VectorService } from "./vectors.ts";
 class HttpError extends Error {
   constructor(
     readonly status: number,
@@ -29,10 +38,16 @@ type Context = {
   id: string;
   requestId: string;
   getIngestion?: () => Promise<IngestionService>;
+  getVectors?: () => Promise<VectorService>;
+  signal?: AbortSignal;
 };
 async function ingestion(c: Pick<Context, "getIngestion">) {
   if (!c.getIngestion) throw new HttpError(503, "INGESTION_NOT_CONFIGURED");
   return c.getIngestion();
+}
+async function vectors(c: Pick<Context, "getVectors">) {
+  if (!c.getVectors) throw new HttpError(503, "VECTORS_NOT_CONFIGURED");
+  return c.getVectors();
 }
 interface Operation {
   method: string;
@@ -86,6 +101,49 @@ async function exists(
   return record;
 }
 export const operations: Operation[] = [
+  operation(
+    "POST",
+    "/index-builds/{id}/vectors",
+    "创建可恢复的向量构建任务",
+    s.empty,
+    z.object({ vectorIndexId: s.uuid }),
+    async (c) => (await vectors(c)).enqueue(c.id, c.requestId),
+    202,
+  ),
+  operation(
+    "GET",
+    "/vector-indexes/{id}",
+    "读取向量配置与构建进度",
+    s.empty,
+    v.vectorIndexResult,
+    async (c) => (await vectors(c)).get(c.id),
+  ),
+  operation(
+    "POST",
+    "/vector-indexes/{id}/retry",
+    "重试失败的向量任务并复用已完成批次",
+    s.empty,
+    z.object({ vectorIndexId: s.uuid }),
+    async (c) => (await vectors(c)).retry(c.id, c.requestId),
+    202,
+  ),
+  operation(
+    "POST",
+    "/vector-indexes/{id}/search",
+    "关键词、向量或 RRF 混合检索",
+    v.vectorSearchInput,
+    v.vectorSearchResult,
+    async (c, data) =>
+      (await vectors(c)).search(c.id, data, c.signal, c.requestId),
+  ),
+  operation(
+    "GET",
+    "/retrieval-runs/{id}",
+    "读取检索实验记录与双路候选",
+    s.empty,
+    v.retrievalRunResult,
+    async (c) => (await vectors(c)).run(c.id),
+  ),
   operation(
     "POST",
     "/rulesets/{id}/releases",
@@ -528,7 +586,7 @@ export function openApiDocument() {
       },
     };
     const errors = Object.fromEntries(
-      [400, 401, 404, 409, 413, 415, 422, 500, 503].map((code) => [
+      [400, 401, 404, 409, 413, 415, 422, 500, 502, 503, 504].map((code) => [
         code,
         {
           description: `HTTP ${code}`,
@@ -674,6 +732,8 @@ async function readBytes(request: Request, max: number): Promise<Buffer> {
 export interface AdminDependencies {
   getDb: () => Promise<DataSource>;
   getIngestion?: () => Promise<IngestionService>;
+  getVectors?: () => Promise<VectorService>;
+  signal?: AbortSignal;
   adminToken: () => string | undefined;
   reportError?: (error: unknown, requestId: string) => void;
 }
@@ -742,7 +802,14 @@ export async function handleAdmin(
       op.input.parse(raw);
       const db = await deps.getDb();
       const data = await op.invoke(
-        { db, id, requestId, getIngestion: deps.getIngestion },
+        {
+          db,
+          id,
+          requestId,
+          getIngestion: deps.getIngestion,
+          getVectors: deps.getVectors,
+          signal: request.signal,
+        },
         raw,
       );
       let serialized: unknown;
@@ -762,6 +829,21 @@ export async function handleAdmin(
       error instanceof RetrievalError
     )
       return respond({ error: { code: error.code }, requestId }, error.status);
+    if (error instanceof EmbeddingError) {
+      const status =
+        error.code === "EMBEDDING_TIMEOUT"
+          ? 504
+          : ["EMBEDDING_RATE_LIMIT", "EMBEDDING_UNAVAILABLE"].includes(
+                error.code,
+              )
+            ? 503
+            : ["EMBEDDING_INPUT_LIMIT", "EMBEDDING_BATCH_LIMIT"].includes(
+                  error.code,
+                )
+              ? 422
+              : 502;
+      return respond({ error: { code: error.code }, requestId }, status);
+    }
     if (error instanceof z.ZodError)
       return respond(
         {

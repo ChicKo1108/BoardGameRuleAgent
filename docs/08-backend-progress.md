@@ -38,3 +38,9 @@ OpenAPI 3.1 从实际路由和 schema 生成，GET /api/admin/openapi（需管�
 实现同规则集已审核资料的完整不可变知识快照、原文与规则 manifest/hash、规则成员和关系；冻结后的内容、索引和规则集身份由数据库保护。基于完整规则与同版本中文分词建立关键词检索基线，查询限定版本，证据恢复原始页码/坐标并补全关联；数量或字符预算不足明确返回缺口。新增管理员 API/OpenAPI，尚未提供公众检索或问答。
 
 验证：30 项测试、类型检查、Worker 检查、生产构建及真实 HTTP 贯穿链路。合成语料验证工程行为；真实中文规则的审核和检索质量评测仍未完成。详细运行与限制见 [知识版本与检索基线](10-knowledge-retrieval.md)。
+
+## PR：hybrid-retrieval（依赖 knowledge-retrieval）
+
+实现 Embedding 协议适配器、持久批量构建与检查点恢复、真实 pgvector 余弦查询、RRF 融合、配置/向量空间隔离、不可变运行记录及管理员 API/OpenAPI。向量服务未配置时不伪造结果。测试环境切换为原生 PostgreSQL 18 或 CI pgvector 容器，独立数据库隔离。
+
+验证：38 项测试、类型检查、Worker 检查、生产构建、真实 HTTP 贯穿链路。模型输出来自本地合成服务，尚未做真实供应商或真实桌游质量验收。运行与 TokenHub 候选配置见 [向量与混合检索](11-hybrid-retrieval.md)。

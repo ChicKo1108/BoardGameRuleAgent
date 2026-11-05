@@ -5,6 +5,7 @@ import { KnowledgeStorage1793836800000 } from "./migrations/1793836800000-Knowle
 import { AdminAudit1793836801000 } from "./migrations/1793836801000-AdminAudit.ts";
 import { PdfIngestion1793836802000 } from "./migrations/1793836802000-PdfIngestion.ts";
 import { KnowledgeReleases1793836803000 } from "./migrations/1793836803000-KnowledgeReleases.ts";
+import { VectorRetrieval1793836804000 } from "./migrations/1793836804000-VectorRetrieval.ts";
 export * from "./entities.ts";
 export * from "./knowledge-repository.ts";
 
@@ -25,6 +26,7 @@ export function createDataSource(databaseUrl: string): DataSource {
       AdminAudit1793836801000,
       PdfIngestion1793836802000,
       KnowledgeReleases1793836803000,
+      VectorRetrieval1793836804000,
     ],
     migrationsTransactionMode: "all",
     uuidExtension: "pgcrypto",

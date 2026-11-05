@@ -1,6 +1,6 @@
 # API 与实施计划
 
-以下表格区分已实现接口与后续规划；实际 schema 以鉴权后的 /api/admin/openapi 为准。完整混合检索、评测发布与问答仍待实现。
+以下表格区分已实现接口与后续规划；实际 schema 以鉴权后的 /api/admin/openapi 为准。混合检索已接通；真实质量评测、发布与问答仍待实现。
 
 | 方法与路径 | 用途 | 状态 |
 | --- | --- | --- |
@@ -12,9 +12,12 @@
 | PATCH /api/admin/rules/{id} | 修改待审核规则 | 已实现 |
 | POST /api/admin/revisions/{id}/approve | 审核资料 | 已实现 |
 | POST /api/admin/rulesets/{id}/releases | 冻结知识快照 | 已实现，未代表发布 |
-| POST /api/admin/releases/{id}/indexes | 完整规则关键词索引 | 已实现，向量后续接入 |
+| POST /api/admin/releases/{id}/indexes | 完整规则关键词索引 | 已实现，另有向量构建任务 |
 | POST /api/admin/index-builds/{id}/search | 限定版本关键词检索 | 已实现，管理员实验 |
 | POST /api/admin/index-builds/{id}/context | 证据及关系补全 | 已实现 |
+| POST /api/admin/index-builds/{id}/vectors | 持久向量构建 | 已实现 |
+| POST /api/admin/vector-indexes/{id}/search | 关键词/向量/混合对照 | 已实现 |
+| GET /api/admin/retrieval-runs/{id} | 检索运行记录 | 已实现 |
 | POST /api/admin/evaluations | 创建评测 | 规划 |
 | POST /api/admin/releases/{id}/publish | 通过门禁后发布 | 规划 |
 | POST /api/conversations/{id}/messages | 正式问答 | 规划 |

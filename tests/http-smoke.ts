@@ -13,9 +13,12 @@ import {
   LocalBlobStore,
   PythonPdfParser,
   sha256,
+  VectorService,
 } from "../packages/backend/src/index.ts";
 import { testDatabase } from "./helpers/database.js";
 
+import { embeddingServer } from "./helpers/embedding.js";
+const embeddingHttp = await embeddingServer();
 const fixture = await testDatabase();
 await fixture.db.runMigrations();
 const queue = await connectQueue(
@@ -55,6 +58,16 @@ const child = spawn(
       NEXT_TELEMETRY_DISABLED: "1",
       STORAGE_ROOT: storage,
       PARSER_SCRIPT: script,
+      EMBEDDING_ENDPOINT: embeddingHttp.endpoint,
+      EMBEDDING_API_KEY: embeddingHttp.config.apiKey,
+      EMBEDDING_PROVIDER_ID: embeddingHttp.config.providerId,
+      EMBEDDING_MODEL: embeddingHttp.config.model,
+      EMBEDDING_REVISION: embeddingHttp.config.revision,
+      EMBEDDING_DIMENSIONS: "3",
+      EMBEDDING_MAX_INPUT_CHARS: "8000",
+      EMBEDDING_SEND_DIMENSIONS: "false",
+      EMBEDDING_DOCUMENT_PREFIX: "",
+      EMBEDDING_QUERY_PREFIX: "",
     },
   },
 );
@@ -226,6 +239,49 @@ try {
     assert.equal(context.releaseId, release.id);
     assert.equal(context.evidence[0].sources[0].blockId, block.id);
     assert.equal(context.evidence[0].sources[0].pdfPageIndex, 0);
+    const vectorIndex = await post(
+      `/index-builds/${index.id}/vectors`,
+      {},
+      202,
+    );
+    await new VectorService(fixture.db, queue, embeddingHttp.provider).start();
+    let ready = false;
+    for (let attempt = 0; attempt < 80; attempt++) {
+      const response = await fetch(
+        `${base}/api/admin/vector-indexes/${vectorIndex.vectorIndexId}`,
+        { headers },
+      );
+      assert.equal(response.status, 200);
+      const state = JSON.parse(await response.text()).data;
+      if (state.state === "ready") {
+        ready = true;
+        break;
+      }
+      if (state.state === "failed") throw new Error(state.errorCode);
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    assert.ok(ready, "Vector worker did not finish");
+    const hybrid = await post(
+      `/vector-indexes/${vectorIndex.vectorIndexId}/search`,
+      { query: "Synthetic tile" },
+      200,
+    );
+    assert.equal(hybrid.indexBuildId, index.id);
+    assert.equal(hybrid.hits[0].ruleId, rule.id);
+    assert.ok(hybrid.candidates.vector.length);
+    assert.ok(hybrid.candidates.lexical.length);
+    const traced = await fetch(
+      `${base}/api/admin/retrieval-runs/${hybrid.retrievalRunId}`,
+      { headers },
+    );
+    assert.equal(traced.status, 200);
+    const trace = JSON.parse(await traced.text()).data;
+    assert.ok(trace.requestId);
+    assert.equal(trace.status, "succeeded");
+    console.info(
+      "PASS production HTTP: vector worker, embedding HTTP adapter, pgvector cosine search, RRF, persisted retrieval trace",
+    );
+
     console.info(
       "PASS production HTTP: reviewed snapshot, versioned index, lexical search, exact evidence source",
     );
@@ -257,6 +313,7 @@ try {
     await exited;
   }
   await queue.stop();
+  await embeddingHttp.close();
   await fixture.close();
   await rm(storage, { recursive: true, force: true });
 }

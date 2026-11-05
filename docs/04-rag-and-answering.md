@@ -1,6 +1,6 @@
 # RAG 与回答链路
 
-当前实际实现为不可变快照与中文关键词基线，见 [运行说明](10-knowledge-retrieval.md)。下列完整 RAG 链路仍在逐步实现，不代表向量、Agent 或评测已完成。
+当前已实现知识快照、关键词、pgvector 与 RRF 混合检索和关联补全，见 [向量运行说明](11-hybrid-retrieval.md)。真实质量评测、重排、Agent 与发布仍待完成。
 
 ## 检索流程
 
