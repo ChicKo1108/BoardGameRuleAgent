@@ -58,3 +58,5 @@ export * as publicationSchemas from "./publications.ts";
 export {sessionView} from "./sessions.ts";
 
 export * as conversationSchemas from "./conversations.ts";
+
+export * as curationSchemas from "./curation.ts";

@@ -14,7 +14,7 @@
     "dev": "npm run dev --workspace=@boardgame/web",
     "build": "npm run build --workspace=@boardgame/web",
     "start": "npm run start --workspace=@boardgame/web",
-    "typecheck": "npm run typecheck --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present && tsc -p scripts/tsconfig.json",
     "worker:check": "npm run check --workspace=@boardgame/worker",
     "test": "node --import tsx --test tests/*.test.ts",
     "db:migrate": "tsx packages/db/src/cli.ts up",
@@ -24,7 +24,8 @@
     "test:http": "tsx tests/http-smoke.ts",
     "queue:setup": "tsx apps/worker/src/index.ts --setup",
     "worker:start": "tsx apps/worker/src/index.ts",
-    "worker:once": "tsx apps/worker/src/index.ts --once"
+    "worker:once": "tsx apps/worker/src/index.ts --once",
+    "curation": "tsx scripts/curation.ts"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

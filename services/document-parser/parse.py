@@ -5,12 +5,13 @@ import pdfplumber
 
 
 def parse(path, config):
-    result = {"pipelineVersion": "pdfplumber-regions-v1", "parserVersion": pdfplumber.__version__, "pages": [], "blocks": [], "warnings": []}
+    result = {"pipelineVersion": "pdfplumber-regions-v2", "parserVersion": pdfplumber.__version__, "pages": [], "blocks": [], "warnings": []}
     configured = {p["pageIndex"]: p["regions"] for p in config.get("pageRegions", [])}
+    labels = {p["pageIndex"]: p["label"] for p in config.get("pageLabels", [])}
     with pdfplumber.open(path) as pdf:
         if not 1 <= len(pdf.pages) <= 100:
             raise ValueError("PAGE_LIMIT_EXCEEDED")
-        if any(i >= len(pdf.pages) for i in configured):
+        if any(i >= len(pdf.pages) for i in set(configured) | set(labels)):
             raise ValueError("INVALID_PAGE_CONFIG")
         total_text = 0
         for index, page in enumerate(pdf.pages):
@@ -25,7 +26,7 @@ def parse(path, config):
                 if not text.strip():
                     continue
                 page_text += len(text.strip())
-                result["blocks"].append({"ordinal": len(result["blocks"]), "kind": "text", "rawText": text, "pdfPageIndex": index, "printedPageLabel": None, "bbox": list(box)})
+                result["blocks"].append({"ordinal": len(result["blocks"]), "kind": "text", "rawText": text, "pdfPageIndex": index, "printedPageLabel": labels.get(index), "bbox": list(box)})
             total_text += page_text
             if page_text < 20:
                 result["warnings"].append({"code": "LOW_TEXT_PAGE", "pageIndex": index})
@@ -40,7 +41,7 @@ def parse(path, config):
                 if box in seen or box[0] >= box[2] or box[1] >= box[3]:
                     continue
                 seen.add(box)
-                result["blocks"].append({"ordinal": len(result["blocks"]), "kind": "figure", "rawText": "", "pdfPageIndex": index, "printedPageLabel": None, "bbox": list(box)})
+                result["blocks"].append({"ordinal": len(result["blocks"]), "kind": "figure", "rawText": "", "pdfPageIndex": index, "printedPageLabel": labels.get(index), "bbox": list(box)})
             if len(result["blocks"]) > 2000:
                 raise ValueError("BLOCK_LIMIT_EXCEEDED")
         if total_text < 20:

@@ -8,6 +8,7 @@ import {
   answeringSchemas as a,
   answerEvaluationSchemas as ae,
   publicationSchemas as p,
+  curationSchemas as cu,
 } from "@boardgame/contracts";
 import {
   KnowledgeRepository,
@@ -33,6 +34,7 @@ import type { EvaluationService } from "./evaluations.ts";
 import type { AnswerService } from "./answers.ts";
 import type { AnswerEvaluationService } from "./answer-evaluations.ts";
 import type { PublicationService } from "./publications.ts";
+import { CurationService } from "./curation.ts";
 class HttpError extends Error {
   constructor(
     readonly status: number,
@@ -131,6 +133,57 @@ async function exists(
   return record;
 }
 export const operations: Operation[] = [
+  operation(
+    "GET",
+    "/curation-imports/{id}/annotation-reviews",
+    "分页读取评测标签的人工复核声明",
+    s.pageQuery,
+    s.listResult(cu.annotationReviewResult),
+    async (c, q) => new CurationService(c.db).annotationReviews(c.id, q),
+  ),
+
+  operation(
+    "GET",
+    "/revisions/{id}/curation-template",
+    "导出来源指纹和私有整理模板",
+    s.empty,
+    cu.template,
+    async (c) => new CurationService(c.db).template(c.id),
+  ),
+  operation(
+    "POST",
+    "/revisions/{id}/curation-imports",
+    "按来源指纹原子导入待审核规则及标签",
+    cu.importInput,
+    cu.importResult,
+    async (c, data) =>
+      new CurationService(c.db).import(c.id, data, c.requestId),
+    201,
+  ),
+  operation(
+    "GET",
+    "/curation-imports/{id}",
+    "查看不可变整理包与规则映射",
+    s.empty,
+    cu.importResult,
+    async (c) => new CurationService(c.db).get(c.id),
+  ),
+  operation(
+    "POST",
+    "/curation-imports/{id}/evaluation-datasets",
+    "复核标签后映射到同快照评测集",
+    cu.materializeInput,
+    e.datasetResult,
+    async (c, data) =>
+      new CurationService(c.db).materialize(
+        c.id,
+        data,
+        c.requestId,
+        await evaluations(c),
+      ),
+    201,
+  ),
+
   operation(
     "POST",
     "/rulesets/{id}/publication-policies",
