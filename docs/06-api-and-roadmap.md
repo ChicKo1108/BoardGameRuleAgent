@@ -24,7 +24,9 @@
 | POST /api/admin/evaluation-datasets/{id}/runs | 异步检索评测 | 已实现 |
 | GET /api/admin/evaluation-runs/{id} 及 /results | 汇总与逐题记录 | 已实现 |
 | POST /api/admin/evaluation-runs/{id}/retry | 失败任务恢复 | 已实现 |
-| POST /api/admin/releases/{id}/publish | 通过门禁后发布 | 规划 |
+| POST /api/admin/rulesets/{id}/publication-transitions | 通过门禁后发布/回滚/停用 | 已实现 |
+| GET/POST/DELETE /api/session | 游客凭证、额度查询、撤销 | 已实现 |
+| GET /api/openapi | 公众接口契约 | 已实现 |
 | POST /api/conversations/{id}/messages | 正式问答 | 规划 |
 
 统一考虑鉴权、输入校验、幂等、分页、错误码和 request_id。Swagger/OpenAPI 必须反映实际实现，不公开伪造成功响应。
