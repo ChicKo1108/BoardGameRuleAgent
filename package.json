@@ -20,7 +20,8 @@
     "db:migrate": "tsx packages/db/src/cli.ts up",
     "db:revert": "tsx packages/db/src/cli.ts down",
     "db:status": "tsx packages/db/src/cli.ts status",
-    "typecheck:tests": "tsc -p tests/tsconfig.json"
+    "typecheck:tests": "tsc -p tests/tsconfig.json",
+    "test:http": "tsx tests/http-smoke.ts"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

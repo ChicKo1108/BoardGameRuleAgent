@@ -22,3 +22,4 @@ jobs:
       - run: npm test
       - run: npm run worker:check
       - run: npm run build
+      - run: npm run test:http

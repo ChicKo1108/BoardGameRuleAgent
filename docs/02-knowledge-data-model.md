@@ -61,4 +61,4 @@ interface RuleUnit {
 }
 ```
 
-当前是逻辑数据模型，尚未创建上述业务表。最终外键、唯一约束、并发控制与索引由实体实现阶段补全。
+当前已实现 games、rulesets、source_documents、document_revisions、source_blocks、rule_units、rule_sources、rule_relations 及管理员审计表。发布、索引、检索运行与评测表仍待实现；已实现约束与测试见 docs/08-backend-progress.md。

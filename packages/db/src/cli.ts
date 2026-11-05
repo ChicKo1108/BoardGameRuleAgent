@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { createDataSource } from "./index.js";
+import { createDataSource } from "./index.ts";
 const action = process.argv[2];
 if (!["up", "down", "status"].includes(action ?? "")) throw new Error("Usage: db:migrate | db:revert | db:status");
 const db = createDataSource(process.env.DATABASE_URL ?? "");

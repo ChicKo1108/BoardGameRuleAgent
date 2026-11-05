@@ -6,7 +6,8 @@
 
 已初始化 npm workspaces、Next.js 应用、存活检查 API、共享契约、TypeORM 数据源工厂、Pi 依赖和 Worker 入口。
 已实现知识存储表、可回退迁移和仓储约束，详见 [后端进度](docs/08-backend-progress.md)。
-尚未实现 HTTP 入库、检索、聊天、队列、登录、Swagger UI 和 Sentry 集成。
+已实现带鉴权的知识管理 API、结构化来源导入、审核和 OpenAPI 文档。
+尚未实现 PDF 上传/自动解析、检索、聊天、队列、公众登录、Swagger UI 和 Sentry 集成。
 当前首页是工程状态页，不是产品设计稿。没有导入任何真实规则书或模型密钥。
 
 ## 启动
@@ -25,6 +26,7 @@ npm run typecheck:tests
 npm test
 npm run worker:check
 npm run build
+npm run test:http
 npm start
 ```
 

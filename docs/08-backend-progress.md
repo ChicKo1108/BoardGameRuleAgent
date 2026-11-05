@@ -11,5 +11,16 @@
 运行：npm test；npm run typecheck:tests；DATABASE_URL=... npm run db:migrate。
 迁移不随 Web 启动自动执行。db:revert 会撤销最后一条迁移并删除其表，生产操作须先备份并单独授权。
 
-未实现：HTTP 管理接口、文档存储/解析适配器、队列、检索、问答、发布和评测、用户/额度、Swagger/Sentry。
+在 knowledge-storage PR 边界上尚未实现 HTTP 管理接口；后续完成情况见下节。文档存储/解析适配器、队列、检索、问答、发布和评测、用户/额度与 Sentry 仍待实现。
 下一功能 PR 建立经认证的知识管理 API 与结构化资料入库，后续对接用户提供的真实 PDF。
+
+## PR：knowledge-admin-api（依赖 knowledge-storage）
+
+实现 Next.js 管理 API：游戏/规则集/文档元数据、修订、结构化来源块、规则编辑、来源查阅、规则关联与审核冻结。
+单管理员服务端 Bearer token 鉴权，未配置时关闭访问；它不替代后续公众微信登录。所有写操作与审计记录同事务提交。
+Zod 严格请求校验、1 MiB 请求体限制、参数化查询、分页和统一脱敏错误；请求 ID 关联日志。
+OpenAPI 3.1 从实际路由和 schema 生成，GET /api/admin/openapi（需管理员 token），可导入 Swagger。尚未添加 Swagger UI。
+文档登记仅保存元数据，不表示 PDF 已上传；来源块导入是解析适配接口，不是假装完成自动解析。
+运行 Next.js 前在 apps/web/.env.local 配置 DATABASE_URL 和 ADMIN_API_TOKEN，并从根 .env 执行迁移。原始 PDF 和密钥不提交。
+
+验证：13 项真实 PostgreSQL/接口测试、类型检查、生产构建通过。npm run test:http 在构建后启动临时 Next.js 与数据库，验证真实 HTTP 鉴权、创建/查询和 OpenAPI；已加入 CI。
