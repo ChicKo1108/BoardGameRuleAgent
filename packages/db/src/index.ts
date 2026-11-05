@@ -12,6 +12,7 @@ import { AnswerEvaluations1793836807000 } from "./migrations/1793836807000-Answe
 import { KnowledgePublications1793836808000 } from "./migrations/1793836808000-KnowledgePublications.ts";
 import { GuestSessions1793836809000 } from "./migrations/1793836809000-GuestSessions.ts";
 import { PublicConversations1793836810000 } from "./migrations/1793836810000-PublicConversations.ts";
+import { WechatAccounts1793836811000 } from "./migrations/1793836811000-WechatAccounts.ts";
 export * from "./entities.ts";
 export * from "./knowledge-repository.ts";
 
@@ -39,6 +40,7 @@ export function createDataSource(databaseUrl: string): DataSource {
       KnowledgePublications1793836808000,
       GuestSessions1793836809000,
       PublicConversations1793836810000,
+      WechatAccounts1793836811000,
     ],
     migrationsTransactionMode: "all",
     uuidExtension: "pgcrypto",

@@ -22,3 +22,5 @@ export * from "./publications.ts";
 export * from "./sessions.ts";
 
 export * from "./conversations.ts";
+
+export * from "./wechat.ts";

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
 import { createServer } from "node:net";
+import { createServer as createHttpServer } from "node:http";
 import { once } from "node:events";
 import { resolve, join } from "node:path";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
@@ -31,6 +32,23 @@ import {
 // Synthetic deployment identity; shared by the isolated HTTP server and workers.
 process.env.APP_REVISION = "0".repeat(40);
 const chatHttp = await chatServer(publicationReply);
+const wechatCalls: URL[] = [];
+const wechatHttp = createHttpServer((req, res) => {
+  const url = new URL(req.url!, "http://127.0.0.1");
+  wechatCalls.push(url);
+  res.writeHead(200, { "content-type": "application/json" });
+  res.end(
+    JSON.stringify({
+      openid: "http-synthetic-member",
+      access_token: "http-synthetic-access-token",
+      expires_in: 7200,
+      scope: "snsapi_login",
+    }),
+  );
+});
+await new Promise<void>((r) => wechatHttp.listen(0, "127.0.0.1", r));
+const wechatEndpoint = `http://127.0.0.1:${(wechatHttp.address() as { port: number }).port}/`;
+
 const embeddingHttp = await embeddingServer();
 const fixture = await testDatabase();
 await fixture.db.runMigrations();
@@ -54,6 +72,8 @@ const token = randomBytes(32).toString("hex");
 const child = spawn(
   process.execPath,
   [
+    "--import",
+    resolve("tests/helpers/wechat-fetch.mjs"),
     resolve("node_modules/next/dist/bin/next"),
     "start",
     "--hostname",
@@ -69,6 +89,10 @@ const child = spawn(
       ADMIN_API_TOKEN: token,
       PUBLIC_APP_ORIGIN: `http://127.0.0.1:${port}`,
       PUBLIC_GUEST_DAILY_QUESTIONS: "2",
+      PUBLIC_MEMBER_DAILY_QUESTIONS: "5",
+      WECHAT_APP_ID: "wx_http_synthetic",
+      WECHAT_APP_SECRET: "http-synthetic-app-secret",
+      TEST_WECHAT_LOOPBACK: wechatEndpoint,
       PUBLIC_GLOBAL_DAILY_QUESTIONS: "10",
       CHAT_BASE_URL: chatHttp.config.baseUrl,
       CHAT_API_KEY: chatHttp.config.apiKey,
@@ -703,6 +727,78 @@ try {
     console.info(
       "PASS production HTTP: scoped public conversation, published hybrid answer, real history, quota and idempotent retry",
     );
+    const loginStart = await fetch(`${base}/api/auth/wechat/start`, {
+      method: "POST",
+      headers: { ...sessionHeaders, cookie: guestCookie },
+    });
+    assert.equal(loginStart.status, 200, await loginStart.clone().text());
+    const loginState = new URL(
+      JSON.parse(await loginStart.text()).data.authorizationUrl,
+    ).searchParams.get("state")!;
+    const bindingCookie = loginStart.headers
+      .getSetCookie()
+      .find((c) => c.startsWith("boardgame_local_oauth="))!
+      .split(";")[0];
+    assert.match(loginStart.headers.get("set-cookie")!, /SameSite=Lax/);
+    const callbackResponse = await fetch(
+      `${base}/api/auth/wechat/callback?` +
+        new URLSearchParams({ state: loginState, code: randomUUID() }),
+      {
+        redirect: "manual",
+        headers: { cookie: bindingCookie, "sec-fetch-site": "cross-site" },
+      },
+    );
+    assert.equal(
+      callbackResponse.status,
+      303,
+      await callbackResponse.clone().text(),
+    );
+    assert.equal(callbackResponse.headers.get("location"), base + "/");
+    const memberCookie = callbackResponse.headers
+      .getSetCookie()
+      .find((c) => c.startsWith("boardgame_local_session="))!
+      .split(";")[0];
+    assert.equal(
+      (await fetch(`${base}/api/session`, { headers: { cookie: guestCookie } }))
+        .status,
+      401,
+    );
+    const memberView = await fetch(`${base}/api/session`, {
+      headers: { cookie: memberCookie },
+    });
+    assert.equal(memberView.status, 200);
+    const account = JSON.parse(await memberView.text()).data;
+    assert.equal(account.kind, "member");
+    assert.equal(account.quota.used, 1);
+    assert.equal(account.quota.limit, 5);
+    const memberHistory = await fetch(
+      `${base}/api/conversations/${conversation.id}/messages`,
+      { headers: { cookie: memberCookie } },
+    );
+    assert.equal(memberHistory.status, 200);
+    assert.equal(JSON.parse(await memberHistory.text()).data.total, 1);
+    const memberAnswer = await fetch(
+      `${base}/api/conversations/${conversation.id}/messages`,
+      {
+        method: "POST",
+        headers: {
+          ...sessionHeaders,
+          cookie: memberCookie,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          idempotencyKey: randomUUID(),
+          expectedRevision: 1,
+          question: "Synthetic tile",
+        }),
+      },
+    );
+    assert.equal(memberAnswer.status, 200, await memberAnswer.clone().text());
+    assert.equal(JSON.parse(await memberAnswer.text()).data.state, "completed");
+    assert.equal(wechatCalls.length, 1);
+    console.info(
+      "PASS production HTTP: fixed WeChat adapter over test transport, one-time binding, session rotation, account quota and real guest history claim",
+    );
 
     const headResponse = await fetch(
       `${base}/api/admin/rulesets/${ruleset.id}/publication`,
@@ -756,6 +852,10 @@ try {
   await queue.stop();
   await embeddingHttp.close();
   await chatHttp.close();
+  wechatHttp.closeAllConnections();
+  await new Promise<void>((r, reject) =>
+    wechatHttp.close((error) => (error ? reject(error) : r())),
+  );
   await fixture.close();
   await rm(storage, { recursive: true, force: true });
 }

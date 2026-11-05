@@ -1,6 +1,6 @@
 import { z } from "zod";
 export const sessionView = z.object({
-  kind: z.literal("guest"),
+  kind: z.enum(["guest", "member"]),
   expiresAt: z.iso.datetime(),
   quota: z.object({
     day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),

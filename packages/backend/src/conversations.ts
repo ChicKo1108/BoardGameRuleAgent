@@ -42,7 +42,7 @@ export class ConversationService {
     lock = false,
   ) {
     const [row] = await tx.query(
-      `SELECT c.*,(SELECT coalesce(max(sequence),0) FROM public_turns WHERE conversation_id=c.id)::int AS revision FROM public_conversations c WHERE c.id=$1 AND c.principal_id=$2${lock ? " FOR UPDATE" : ""}`,
+      `SELECT c.*,(SELECT coalesce(max(sequence),0) FROM public_turns WHERE conversation_id=c.id)::int AS revision FROM public_conversations c WHERE c.id=$1 AND c.principal_id IN (SELECT principal_scope($2))${lock ? " FOR UPDATE" : ""}`,
       [id, principal],
     );
     if (!row) throw error("CONVERSATION_NOT_FOUND", 404);
@@ -77,14 +77,21 @@ export class ConversationService {
         [input.idempotencyKey],
       );
       if (old) {
-        if (old.principal_id !== actor.principalId)
+        if (
+          !(
+            await tx.query("SELECT 1 FROM principal_scope($1) id WHERE id=$2", [
+              actor.principalId,
+              old.principal_id,
+            ])
+          ).length
+        )
           throw error("CONVERSATION_NOT_FOUND", 404);
         if (old.ruleset_id !== input.rulesetId)
           throw error("CONVERSATION_IDEMPOTENCY_CONFLICT");
         return this.view(await this.owned(old.id, actor.principalId, tx));
       }
       const [{ count }] = await tx.query(
-        "SELECT count(*)::int AS count FROM public_conversations WHERE principal_id=$1",
+        "SELECT count(*)::int AS count FROM public_conversations WHERE principal_id IN (SELECT principal_scope($1))",
         [actor.principalId],
       );
       if (count >= 100) throw error("CONVERSATION_LIMIT", 429);
@@ -113,11 +120,11 @@ export class ConversationService {
   async list(token: string | null, page = { limit: 25, offset: 0 }) {
     const actor = await this.sessions.authenticate(token);
     const [{ total }] = await this.db.query(
-      "SELECT count(*)::int AS total FROM public_conversations WHERE principal_id=$1",
+      "SELECT count(*)::int AS total FROM public_conversations WHERE principal_id IN (SELECT principal_scope($1))",
       [actor.principalId],
     );
     const rows = await this.db.query(
-      "SELECT c.*,(SELECT coalesce(max(sequence),0) FROM public_turns WHERE conversation_id=c.id)::int AS revision FROM public_conversations c WHERE principal_id=$1 ORDER BY created_at DESC,id LIMIT $2 OFFSET $3",
+      "SELECT c.*,(SELECT coalesce(max(sequence),0) FROM public_turns WHERE conversation_id=c.id)::int AS revision FROM public_conversations c WHERE principal_id IN (SELECT principal_scope($1)) ORDER BY created_at DESC,id LIMIT $2 OFFSET $3",
       [actor.principalId, page.limit, page.offset],
     );
     return { items: rows.map((r: any) => this.view(r)), total, ...page };
