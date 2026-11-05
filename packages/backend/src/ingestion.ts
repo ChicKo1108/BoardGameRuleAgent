@@ -15,6 +15,7 @@ import {
 } from "./parser.ts";
 import { VECTOR_QUEUE } from "./vectors.ts";
 import { EVALUATION_QUEUE } from "./evaluations.ts";
+import { ANSWER_EVALUATION_QUEUE } from "./answer-evaluations.ts";
 export const PARSE_QUEUE = "parse-document-v1";
 export const RETRIES = 2;
 export async function connectQueue(url: string, setup = false) {
@@ -36,6 +37,14 @@ export async function connectQueue(url: string, setup = false) {
         retryDelay: 2,
         retryBackoff: true,
         expireInSeconds: 180,
+        retentionSeconds: 86400,
+        deleteAfterSeconds: 604800,
+      });
+      await queue.createQueue(ANSWER_EVALUATION_QUEUE, {
+        retryLimit: 2,
+        retryDelay: 10,
+        retryBackoff: true,
+        expireInSeconds: 18000,
         retentionSeconds: 86400,
         deleteAfterSeconds: 604800,
       });

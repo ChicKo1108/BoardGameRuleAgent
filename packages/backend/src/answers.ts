@@ -22,6 +22,33 @@ export class AnswerService {
     private readonly provider?: ChatProvider,
     private readonly budget: Partial<AnswerBudgets> = {},
   ) {}
+  async configuration(raw: unknown) {
+    const retrieval = a.retrievalConfig.parse(raw);
+    if (!this.provider) throw new RetrievalError(503, "CHAT_NOT_CONFIGURED");
+    const knowledge = new KnowledgeIndexService(this.db),
+      base = await knowledge.index(retrieval.indexBuildId);
+    let profileHash = null;
+    if (retrieval.vectorIndexId) {
+      const vector = await this.vectors.get(retrieval.vectorIndexId);
+      if (vector.indexBuildId !== base.id || vector.state !== "ready")
+        throw new RetrievalError(422, "ANSWER_VECTOR_MISMATCH");
+      profileHash = vector.profileHash;
+    }
+    const budgets = a.budgets.parse(this.budget);
+    const config = {
+      model: this.provider.profile,
+      budgets,
+      promptHash: PROMPT_HASH,
+      promptVersion: PROMPT_VERSION,
+      piVersion: "1.5.0",
+      runtimeVersion: RUNTIME_VERSION,
+      nodeVersion: process.versions.node,
+      buildRevision: process.env.APP_REVISION ?? null,
+      indexConfigHash: base.configHash,
+      embeddingProfileHash: profileHash,
+    };
+    return { base, config: a.runResult.shape.config.parse(config) };
+  }
   async preview(raw: unknown, requestId: string, signal?: AbortSignal) {
     const input = a.previewInput.parse(raw),
       id = input.idempotencyKey;
@@ -38,29 +65,8 @@ export class AnswerService {
           throw new RetrievalError(409, "ANSWER_IDEMPOTENCY_CONFLICT");
         return false;
       }
-      if (!this.provider) throw new RetrievalError(503, "CHAT_NOT_CONFIGURED");
-      const knowledge = new KnowledgeIndexService(this.db),
-        base = await knowledge.index(input.retrieval.indexBuildId);
-      let profileHash = null;
-      if (input.retrieval.vectorIndexId) {
-        const vector = await this.vectors.get(input.retrieval.vectorIndexId);
-        if (vector.indexBuildId !== base.id || vector.state !== "ready")
-          throw new RetrievalError(422, "ANSWER_VECTOR_MISMATCH");
-        profileHash = vector.profileHash;
-      }
-      const budgets = a.budgets.parse(this.budget);
-      const config = {
-        model: this.provider.profile,
-        budgets,
-        promptHash: PROMPT_HASH,
-        promptVersion: PROMPT_VERSION,
-        piVersion: "1.5.0",
-        runtimeVersion: RUNTIME_VERSION,
-        nodeVersion: process.versions.node,
-        buildRevision: process.env.APP_REVISION ?? null,
-        indexConfigHash: base.configHash,
-        embeddingProfileHash: profileHash,
-      };
+      const { base, config } = await this.configuration(input.retrieval);
+      const budgets = config.budgets;
       await tx.query(
         "INSERT INTO answer_runs(id,request_id,release_id,index_build_id,vector_index_id,input,config,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,now()+($8::int * interval '1 millisecond'))",
         [

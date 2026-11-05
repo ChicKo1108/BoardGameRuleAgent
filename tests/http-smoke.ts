@@ -15,6 +15,8 @@ import {
   sha256,
   VectorService,
   EvaluationService,
+  AnswerEvaluationService,
+  AnswerService,
 } from "../packages/backend/src/index.ts";
 import { testDatabase } from "./helpers/database.js";
 
@@ -386,6 +388,81 @@ try {
     assert.equal(evaluated.status, 200);
     const outcome = JSON.parse(await evaluated.text()).data;
     assert.equal(outcome.items[0].context.evidence[0].ruleId, rule.id);
+    const answerEvaluation = await post(
+      `/evaluation-datasets/${dataset.id}/answer-evaluations`,
+      {
+        idempotencyKey: randomUUID(),
+        config: { split: "development", retrieval: answerInput.retrieval },
+      },
+      202,
+    );
+    await new AnswerEvaluationService(
+      fixture.db,
+      queue,
+      new AnswerService(
+        fixture.db,
+        new VectorService(fixture.db, queue, embeddingHttp.provider),
+        chatHttp.provider,
+      ),
+    ).start();
+    let answersReady = false;
+    for (let attempt = 0; attempt < 80; attempt++) {
+      const response = await fetch(
+        `${base}/api/admin/answer-evaluations/${answerEvaluation.evaluationId}`,
+        { headers },
+      );
+      assert.equal(response.status, 200);
+      const run = JSON.parse(await response.text()).data;
+      if (run.state === "awaiting_review") {
+        assert.equal(run.summary.automaticPasses, 1);
+        assert.equal(run.summary.passed, 0);
+        assert.equal(run.summary.semanticQualityReviewed, false);
+        answersReady = true;
+        break;
+      }
+      if (run.state === "failed") throw new Error(JSON.stringify(run));
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    assert.ok(answersReady, "Answer evaluation worker did not finish");
+    const casesResponse = await fetch(
+      `${base}/api/admin/answer-evaluations/${answerEvaluation.evaluationId}/cases`,
+      { headers },
+    );
+    assert.equal(casesResponse.status, 200);
+    const answerCase = JSON.parse(await casesResponse.text()).data.items[0];
+    assert.equal(
+      answerCase.answerRun.answer.citations[0].sources[0].blockId,
+      block.id,
+    );
+    const reviewed = await post(
+      `/answer-evaluation-cases/${answerCase.id}/reviews`,
+      {
+        expectedRevision: 0,
+        review: {
+          conclusionCorrect: true,
+          conditionsAndExceptionsCorrect: true,
+          ambiguityHandled: true,
+          refusalAppropriate: true,
+          citationsSupportClaims: true,
+          requiredClaimsSatisfied: [],
+          forbiddenClaimsAbsent: [],
+          note: "Generated fixture only: testing review persistence, not validating Azul rules.",
+        },
+      },
+    );
+    const sealed = await post(
+      `/answer-evaluations/${answerEvaluation.evaluationId}/seal`,
+      { note: "Synthetic HTTP evaluation report" },
+      200,
+    );
+    assert.equal(sealed.state, "sealed");
+    assert.equal(sealed.report.summary.correctRate, 1);
+    assert.match(sealed.reportHash, /^[0-9a-f]{64}$/);
+    assert.equal(sealed.report.cases[0].reviewId, reviewed.id);
+    console.info(
+      "PASS production HTTP: queued Pi answer evaluation, manual review boundary, immutable report and provenance",
+    );
+
     console.info(
       "PASS production HTTP: immutable evaluation dataset, async hybrid evaluation, complete evidence metrics, paginated results",
     );
