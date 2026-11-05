@@ -45,3 +45,6 @@ export * as adminSchemas from "./admin.ts";
 
 export * as knowledgeSchemas from "./knowledge.ts";
 export type { KnowledgeManifest } from "./knowledge.ts";
+
+export * as vectorSchemas from "./vectors.ts";
+export type { EmbeddingProfile } from "./vectors.ts";

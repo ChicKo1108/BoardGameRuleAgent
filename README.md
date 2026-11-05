@@ -9,7 +9,8 @@
 已实现带鉴权的知识管理 API、结构化来源导入、审核和 OpenAPI 文档。
 已实现私有 PDF 上传、pg-boss 持久队列、Python 解析 Worker 与人工审核门禁，见 [入库运行手册](docs/09-pdf-ingestion.md)。
 已实现审核知识快照、中文关键词检索基线、同版本证据与关联补全，见 [知识版本与检索](docs/10-knowledge-retrieval.md)。
-尚未实现向量/混合检索、评测发布门禁、聊天、公众登录、Swagger UI 和 Sentry 集成。
+已实现可恢复向量构建、pgvector 与 RRF 混合检索，见 [向量接入文档](docs/11-hybrid-retrieval.md)。
+尚未完成真实模型质量评测、发布门禁、聊天、公众登录、Swagger UI 和 Sentry 集成。
 当前首页是工程状态页，不是产品设计稿。真实规则书仅用于本地隔离验证，原文和模型密钥均不进入仓库。
 
 ## 启动
@@ -24,6 +25,7 @@ npm run dev
 打开 http://localhost:3000。`GET /api/health` 只检查 Web 进程存活，不检查数据库或模型。
 
 ```sh
+# 数据库测试需要 PostgreSQL 18 + pgvector，配置见 docs/11-hybrid-retrieval.md
 npm run typecheck
 npm run typecheck:tests
 npm test

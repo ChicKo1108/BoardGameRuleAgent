@@ -61,4 +61,4 @@ interface RuleUnit {
 }
 ```
 
-当前已实现 games、rulesets、source_documents、document_revisions、source_blocks、rule_units、rule_sources、rule_relations 及管理员审计表。另已实现 knowledge_releases、release_revisions、release_members、index_builds、retrieval_chunks；快照/索引分别封存为 sealed/ready，尚未实现线上发布记录与版本指针。检索运行与评测表仍待实现；已实现约束与测试见 docs/08-backend-progress.md。
+当前已实现 games、rulesets、source_documents、document_revisions、source_blocks、rule_units、rule_sources、rule_relations 及管理员审计表。另已实现 knowledge_releases、release_revisions、release_members、index_builds、retrieval_chunks；快照/索引分别封存为 sealed/ready，尚未实现线上发布记录与版本指针。另已实现 vector_indexes、chunk_embeddings、embedding_batches 与 retrieval_runs；评测表仍待实现；已实现约束与测试见 docs/08-backend-progress.md。

@@ -13,6 +13,7 @@ import {
   ParseError,
   type PdfParser,
 } from "./parser.ts";
+import { VECTOR_QUEUE } from "./vectors.ts";
 export const PARSE_QUEUE = "parse-document-v1";
 export const RETRIES = 2;
 export async function connectQueue(url: string, setup = false) {
@@ -28,7 +29,7 @@ export async function connectQueue(url: string, setup = false) {
   );
   try {
     await queue.start();
-    if (setup)
+    if (setup) {
       await queue.createQueue(PARSE_QUEUE, {
         retryLimit: RETRIES,
         retryDelay: 2,
@@ -37,6 +38,15 @@ export async function connectQueue(url: string, setup = false) {
         retentionSeconds: 86400,
         deleteAfterSeconds: 604800,
       });
+      await queue.createQueue(VECTOR_QUEUE, {
+        retryLimit: 2,
+        retryDelay: 10,
+        retryBackoff: true,
+        expireInSeconds: 180,
+        retentionSeconds: 86400,
+        deleteAfterSeconds: 604800,
+      });
+    }
     return queue;
   } catch (error) {
     await queue.stop();

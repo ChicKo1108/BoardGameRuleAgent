@@ -1,10 +1,10 @@
 import {
-  connectQueue,
   IngestionService,
   LocalBlobStore,
   PythonPdfParser,
 } from "@boardgame/backend";
 import { getDatabase } from "./database";
+import { getQueue } from "./queue";
 import { isAbsolute } from "node:path";
 const state = globalThis as typeof globalThis & {
   boardgameIngestion?: Promise<IngestionService>;
@@ -17,7 +17,7 @@ export function getIngestion(): Promise<IngestionService> {
       if (!root || !script || !isAbsolute(root) || !isAbsolute(script))
         throw new Error("Absolute STORAGE_ROOT and PARSER_SCRIPT are required");
       const db = await getDatabase();
-      const queue = await connectQueue(process.env.DATABASE_URL ?? "");
+      const queue = await getQueue();
       return new IngestionService(
         db,
         queue,

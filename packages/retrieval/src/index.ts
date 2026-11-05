@@ -308,3 +308,5 @@ export class KnowledgeIndexService {
     });
   }
 }
+
+export * from "./embedding.ts";

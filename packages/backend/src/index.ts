@@ -8,3 +8,5 @@ export {
 export * from "./storage.ts";
 export * from "./parser.ts";
 export * from "./ingestion.ts";
+
+export * from "./vectors.ts";
