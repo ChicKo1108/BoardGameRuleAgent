@@ -6,6 +6,7 @@ import { AdminAudit1793836801000 } from "./migrations/1793836801000-AdminAudit.t
 import { PdfIngestion1793836802000 } from "./migrations/1793836802000-PdfIngestion.ts";
 import { KnowledgeReleases1793836803000 } from "./migrations/1793836803000-KnowledgeReleases.ts";
 import { VectorRetrieval1793836804000 } from "./migrations/1793836804000-VectorRetrieval.ts";
+import { RetrievalEvaluations1793836805000 } from "./migrations/1793836805000-RetrievalEvaluations.ts";
 export * from "./entities.ts";
 export * from "./knowledge-repository.ts";
 
@@ -27,6 +28,7 @@ export function createDataSource(databaseUrl: string): DataSource {
       PdfIngestion1793836802000,
       KnowledgeReleases1793836803000,
       VectorRetrieval1793836804000,
+      RetrievalEvaluations1793836805000,
     ],
     migrationsTransactionMode: "all",
     uuidExtension: "pgcrypto",

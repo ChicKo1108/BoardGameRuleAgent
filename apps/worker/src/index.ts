@@ -7,11 +7,12 @@ import {
   LocalBlobStore,
   PythonPdfParser,
   VectorService,
+  EvaluationService,
 } from "@boardgame/backend";
 import { embeddingProviderFromEnvironment } from "@boardgame/retrieval";
 if (process.argv.includes("--check")) {
   console.info(
-    "Worker modules load. Run queue:setup first. WORKER_TASKS=pdf (default), vectors, or pdf,vectors selects tasks.",
+    "Worker modules load. Run queue:setup first. WORKER_TASKS selects pdf (default), vectors, evaluations, or a comma-separated combination.",
   );
 } else {
   const db = createDataSource(process.env.DATABASE_URL ?? "");
@@ -22,8 +23,14 @@ if (process.argv.includes("--check")) {
       const tasks = new Set(
         (process.env.WORKER_TASKS ?? "pdf").split(",").map((s) => s.trim()),
       );
-      if ([...tasks].some((task) => !["pdf", "vectors"].includes(task)))
-        throw new Error("WORKER_TASKS must contain pdf or vectors");
+      if (
+        [...tasks].some(
+          (task) => !["pdf", "vectors", "evaluations"].includes(task),
+        )
+      )
+        throw new Error(
+          "WORKER_TASKS must contain pdf, vectors, or evaluations",
+        );
       await db.initialize();
       const workers: Array<{
         start(): Promise<void>;
@@ -58,6 +65,15 @@ if (process.argv.includes("--check")) {
             "EMBEDDING configuration is required for vectors worker",
           );
         workers.push(new VectorService(db, queue, provider));
+      }
+      if (tasks.has("evaluations")) {
+        workers.push(
+          new EvaluationService(
+            db,
+            queue,
+            new VectorService(db, queue, embeddingProviderFromEnvironment()),
+          ),
+        );
       }
       if (process.argv.includes("--once")) {
         for (const worker of workers)
