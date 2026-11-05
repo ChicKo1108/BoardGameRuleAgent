@@ -366,9 +366,9 @@ try {
     console.info(
       "PASS production HTTP: source-pinned draft curation, separate rule approval and exact-release reviewed annotation mapping",
     );
-    const index = await post(`/releases/${release.id}/indexes`, {});
+    const legacyIndex = await post(`/releases/${release.id}/indexes`, {});
     const search = await post(
-      `/index-builds/${index.id}/search`,
+      `/index-builds/${legacyIndex.id}/search`,
       { query: "Synthetic tile" },
       200,
     );
@@ -376,13 +376,29 @@ try {
       search.hits.some((hit: { ruleId: string }) => hit.ruleId === rule.id),
     );
     const context = await post(
-      `/index-builds/${index.id}/context`,
+      `/index-builds/${legacyIndex.id}/context`,
       { chunkIds: [search.hits[0].chunkId] },
       200,
     );
     assert.equal(context.releaseId, release.id);
     assert.equal(context.evidence[0].sources[0].blockId, block.id);
     assert.equal(context.evidence[0].sources[0].pdfPageIndex, 0);
+    const index = await post(`/releases/${release.id}/indexes`, {
+      ranker: "bm25-v1",
+    });
+    assert.equal(legacyIndex.config.schemaVersion, 1);
+    assert.equal(index.config.schemaVersion, 2);
+    assert.equal(index.config.ranker, "bm25-v1");
+    assert.notEqual(index.id, legacyIndex.id);
+    const bm25Search = await post(
+      `/index-builds/${index.id}/search`,
+      { query: "Synthetic tile" },
+      200,
+    );
+    assert.equal(bm25Search.hits[0].ruleId, rule.id);
+    console.info(
+      "PASS production HTTP: explicit BM25 index, server-derived statistics, legacy index preserved",
+    );
     const vectorIndex = await post(
       `/index-builds/${index.id}/vectors`,
       {},

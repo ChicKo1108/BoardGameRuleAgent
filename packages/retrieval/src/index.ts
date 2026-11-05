@@ -4,6 +4,8 @@ import {
   type KnowledgeManifest,
 } from "@boardgame/contracts";
 import { RetrievalError } from "./errors.ts";
+import { persistedBm25Sql } from "./bm25.ts";
+export * from "./bm25.ts";
 import {
   lexicalConfiguration as config,
   buildLexicalChunk,
@@ -20,7 +22,10 @@ function assertRuntime(buildConfig: unknown) {
   const recorded = k.lexicalConfigSchema.safeParse(buildConfig);
   if (
     !recorded.success ||
-    JSON.stringify(recorded.data) !== JSON.stringify(config())
+    JSON.stringify(recorded.data) !==
+      JSON.stringify(
+        config(recorded.data.schemaVersion === 2 ? "bm25-v1" : "ts-rank-cd-v1"),
+      )
   )
     throw new RetrievalError(409, "TOKENIZER_VERSION_MISMATCH");
 }
@@ -118,14 +123,19 @@ export class KnowledgeIndexService {
     if (!row) throw new RetrievalError(404, "RELEASE_NOT_FOUND");
     return k.manifestSchema.parse(row.manifest);
   }
-  async build(releaseId: string, requestId: string) {
+  async build(
+    releaseId: string,
+    requestId: string,
+    input: { ranker?: "ts-rank-cd-v1" | "bm25-v1" } = {},
+  ) {
+    const valid = k.indexBuildInput.parse(input);
     return this.db.transaction(async (tx) => {
       const [release] = await tx.query(
         "SELECT manifest FROM knowledge_releases WHERE id=$1 AND state='sealed' FOR UPDATE",
         [releaseId],
       );
       if (!release) throw new RetrievalError(404, "RELEASE_NOT_FOUND");
-      const buildConfig = config();
+      const buildConfig = config(valid.ranker);
       const existing = await tx.query(
         `SELECT ${indexColumns} FROM index_builds WHERE release_id=$1 AND config=$2::jsonb AND state='ready'`,
         [releaseId, JSON.stringify(buildConfig)],
@@ -171,12 +181,17 @@ export class KnowledgeIndexService {
     assertRuntime(build.config);
     const { tokens, expression } = lexicalQuery(valid.query);
     const rows = tokens.length
-      ? await this.db.query(persistedLexicalSql, [
-          buildId,
-          build.releaseId,
-          expression,
-          valid.limit,
-        ])
+      ? await this.db.query(
+          build.config.schemaVersion === 2
+            ? persistedBm25Sql
+            : persistedLexicalSql,
+          [
+            buildId,
+            build.releaseId,
+            build.config.schemaVersion === 2 ? tokens : expression,
+            valid.limit,
+          ],
+        )
       : [];
     return k.searchResult.parse({
       releaseId: build.releaseId,

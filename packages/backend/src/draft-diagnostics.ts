@@ -10,6 +10,7 @@ import {
   buildLexicalChunk,
   lexicalQuery,
   draftLexicalSql,
+  draftBm25Sql,
   assembleRuleContext,
   RetrievalError,
 } from "@boardgame/retrieval";
@@ -209,11 +210,14 @@ export async function diagnoseDraft(
           ruleId: string;
           score: number;
         }> = tokens.length
-          ? await tx.query(draftLexicalSql, [
-              recordJson,
-              parsed.expression,
-              config.limit,
-            ])
+          ? await tx.query(
+              config.ranker === "bm25-v1" ? draftBm25Sql : draftLexicalSql,
+              [
+                recordJson,
+                config.ranker === "bm25-v1" ? parsed.tokens : parsed.expression,
+                config.limit,
+              ],
+            )
           : [];
         hits = ranked.map((r, i) => ({
           alias: aliasFor(r.ruleId),
@@ -279,9 +283,12 @@ export async function diagnoseDraft(
       sourceFingerprint: prepared.bundle.sourceFingerprint,
       developmentCasesHash: curationHash(cases),
       algorithm: {
-        lexicalCore: "lexical-core-v1",
+        lexicalCore:
+          config.ranker === "bm25-v1" ? "bm25-v1" : "lexical-core-v1",
         contextCore: "rule-graph-bfs-v1",
-        sqlHash: curationHash(draftLexicalSql),
+        sqlHash: curationHash(
+          config.ranker === "bm25-v1" ? draftBm25Sql : draftLexicalSql,
+        ),
         nodeVersion: process.versions.node,
         icuVersion: process.versions.icu,
         postgresVersion: version,

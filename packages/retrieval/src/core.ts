@@ -3,9 +3,13 @@ import {
   type KnowledgeManifest,
 } from "@boardgame/contracts";
 import { RetrievalError } from "./errors.ts";
-export const lexicalConfiguration = () =>
+export const lexicalConfiguration = (
+  ranker: "ts-rank-cd-v1" | "bm25-v1" = "ts-rank-cd-v1",
+) =>
   k.lexicalConfigSchema.parse({
-    schemaVersion: 1,
+    ...(ranker === "bm25-v1"
+      ? { schemaVersion: 2, ranker }
+      : { schemaVersion: 1 }),
     method: "lexical",
     chunker: "complete-rule-v1",
     tokenizer: "intl-zh-word-v1",
