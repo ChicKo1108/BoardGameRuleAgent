@@ -13,7 +13,8 @@
 已实现固定评测集、异步检索评测及逐题报告，见 [检索评测](docs/12-retrieval-evaluations.md)。
 已实现 Pi 管理员问答验收、预算与引用校验，见 [Pi 问答后端](docs/13-pi-answering.md)。
 已实现回答生成评测、人工复核修订和报告封存，见 [回答评测](docs/14-answer-evaluations.md)。
-尚未完成真实模型质量评测、发布门禁、聊天、公众登录、Swagger UI 和 Sentry 集成。
+已实现验收策略、发布门禁、版本切换/回滚/停用，见 [发布治理](docs/15-knowledge-publication.md)。
+尚未完成真实模型质量评测、公众聊天、公众登录、Swagger UI 和 Sentry 集成。
 当前首页是工程状态页，不是产品设计稿。真实规则书仅用于本地隔离验证，原文和模型密钥均不进入仓库。
 
 ## 启动

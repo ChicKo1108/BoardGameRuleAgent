@@ -7,6 +7,7 @@ import {
   evaluationSchemas as e,
   answeringSchemas as a,
   answerEvaluationSchemas as ae,
+  publicationSchemas as p,
 } from "@boardgame/contracts";
 import {
   KnowledgeRepository,
@@ -31,6 +32,7 @@ import type { VectorService } from "./vectors.ts";
 import type { EvaluationService } from "./evaluations.ts";
 import type { AnswerService } from "./answers.ts";
 import type { AnswerEvaluationService } from "./answer-evaluations.ts";
+import type { PublicationService } from "./publications.ts";
 class HttpError extends Error {
   constructor(
     readonly status: number,
@@ -48,6 +50,7 @@ type Context = {
   getEvaluations?: () => Promise<EvaluationService>;
   getAnswers?: () => Promise<AnswerService>;
   getAnswerEvaluations?: () => Promise<AnswerEvaluationService>;
+  getPublications?: () => Promise<PublicationService>;
   signal?: AbortSignal;
 };
 async function ingestion(c: Pick<Context, "getIngestion">) {
@@ -70,6 +73,11 @@ async function answerEvaluations(c: Pick<Context, "getAnswerEvaluations">) {
   if (!c.getAnswerEvaluations)
     throw new HttpError(503, "ANSWER_EVALUATIONS_NOT_CONFIGURED");
   return c.getAnswerEvaluations();
+}
+async function publications(c: Pick<Context, "getPublications">) {
+  if (!c.getPublications)
+    throw new HttpError(503, "PUBLICATIONS_NOT_CONFIGURED");
+  return c.getPublications();
 }
 interface Operation {
   method: string;
@@ -123,6 +131,68 @@ async function exists(
   return record;
 }
 export const operations: Operation[] = [
+  operation(
+    "POST",
+    "/rulesets/{id}/publication-policies",
+    "在评测前冻结发布阈值和基线",
+    p.policyInput,
+    p.policyResult,
+    async (c, data) =>
+      (await publications(c)).createPolicy(c.id, data, c.requestId),
+    201,
+  ),
+  operation(
+    "GET",
+    "/publication-policies/{id}",
+    "查看不可变发布策略",
+    s.empty,
+    p.policyResult,
+    async (c) => (await publications(c)).policy(c.id),
+  ),
+  operation(
+    "POST",
+    "/publications",
+    "评估候选发布并保存门禁结果",
+    p.assessmentInput,
+    p.publicationResult,
+    async (c, data) => (await publications(c)).assess(data, c.requestId),
+    201,
+  ),
+  operation(
+    "GET",
+    "/publications/{id}",
+    "读取发布清单与失败原因",
+    s.empty,
+    p.publicationResult,
+    async (c) => (await publications(c)).get(c.id),
+  ),
+  operation(
+    "GET",
+    "/rulesets/{id}/publication",
+    "读取当前版本指针",
+    s.empty,
+    p.headResult,
+    async (c) => (await publications(c)).head(c.id),
+  ),
+  operation(
+    "POST",
+    "/rulesets/{id}/publication-transitions",
+    "发布、回滚或停用知识版本",
+    p.transitionInput,
+    p.eventResult,
+    async (c, data) =>
+      (await publications(c)).transition(c.id, data, c.requestId),
+    201,
+  ),
+  operation(
+    "GET",
+    "/rulesets/{id}/publication-history",
+    "分页查看版本切换历史",
+    s.pageQuery,
+    s.listResult(p.eventResult),
+    async (c, q) => (await publications(c)).history(c.id, q),
+  ),
+
   operation(
     "POST",
     "/evaluation-datasets/{id}/answer-evaluations",
@@ -899,6 +969,7 @@ export interface AdminDependencies {
   getEvaluations?: () => Promise<EvaluationService>;
   getAnswers?: () => Promise<AnswerService>;
   getAnswerEvaluations?: () => Promise<AnswerEvaluationService>;
+  getPublications?: () => Promise<PublicationService>;
   signal?: AbortSignal;
   adminToken: () => string | undefined;
   reportError?: (error: unknown, requestId: string) => void;
@@ -977,6 +1048,7 @@ export async function handleAdmin(
           getEvaluations: deps.getEvaluations,
           getAnswers: deps.getAnswers,
           getAnswerEvaluations: deps.getAnswerEvaluations,
+          getPublications: deps.getPublications,
           signal: request.signal,
         },
         raw,

@@ -52,3 +52,5 @@ export type {
 
 export * as answerEvaluationSchemas from "./answer-evaluations.ts";
 export type { AnswerEvalOutcome, AnswerReview } from "./answer-evaluations.ts";
+
+export * as publicationSchemas from "./publications.ts";
