@@ -11,6 +11,7 @@
 | [RAG 设计](04-rag-and-answering.md) | 检索流程、Agent 工具、证据和答案 |
 | [评测与实验](05-evaluation.md) | 数据集格式、实验矩阵、指标和门禁 |
 | [API 与实施计划](06-api-and-roadmap.md) | API、后台页面、开发里程碑 |
+| [后端实现进度](08-backend-progress.md) | 实际完成范围与验证入口 |
 | [候选问题来源](07-question-candidates.md) | 社区问题和对话测试草案 |
 
 ## 阅读约定
