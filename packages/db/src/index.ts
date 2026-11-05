@@ -11,6 +11,7 @@ import { AnswerRuns1793836806000 } from "./migrations/1793836806000-AnswerRuns.t
 import { AnswerEvaluations1793836807000 } from "./migrations/1793836807000-AnswerEvaluations.ts";
 import { KnowledgePublications1793836808000 } from "./migrations/1793836808000-KnowledgePublications.ts";
 import { GuestSessions1793836809000 } from "./migrations/1793836809000-GuestSessions.ts";
+import { PublicConversations1793836810000 } from "./migrations/1793836810000-PublicConversations.ts";
 export * from "./entities.ts";
 export * from "./knowledge-repository.ts";
 
@@ -37,6 +38,7 @@ export function createDataSource(databaseUrl: string): DataSource {
       AnswerEvaluations1793836807000,
       KnowledgePublications1793836808000,
       GuestSessions1793836809000,
+      PublicConversations1793836810000,
     ],
     migrationsTransactionMode: "all",
     uuidExtension: "pgcrypto",

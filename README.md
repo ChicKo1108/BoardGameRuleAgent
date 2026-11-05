@@ -15,7 +15,8 @@
 已实现回答生成评测、人工复核修订和报告封存，见 [回答评测](docs/14-answer-evaluations.md)。
 已实现验收策略、发布门禁、版本切换/回滚/停用，见 [发布治理](docs/15-knowledge-publication.md)。
 已实现游客会话、问题额度预留及公众 OpenAPI，见 [游客会话与额度](docs/16-guest-sessions-and-allowances.md)。
-尚未完成真实模型质量评测、公众聊天、公众登录、Swagger UI 和 Sentry 集成。
+已实现游客公众问答与历史，见 [公众问答](docs/17-public-conversations.md)。
+尚未完成真实模型质量评测、微信登录、Swagger UI 和 Sentry 集成。
 当前首页是工程状态页，不是产品设计稿。真实规则书仅用于本地隔离验证，原文和模型密钥均不进入仓库。
 
 ## 启动

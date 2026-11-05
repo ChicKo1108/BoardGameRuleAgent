@@ -20,3 +20,5 @@ export * from "./answer-evaluations.ts";
 export * from "./publications.ts";
 
 export * from "./sessions.ts";
+
+export * from "./conversations.ts";

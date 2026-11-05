@@ -1,6 +1,11 @@
-import { publicSessionOpenApi } from "@boardgame/backend";
+import {
+  publicSessionOpenApi,
+  publicConversationPaths,
+} from "@boardgame/backend";
 export function GET() {
-  return Response.json(publicSessionOpenApi(), {
-    headers: { "cache-control": "no-store" },
-  });
+  const spec = publicSessionOpenApi();
+  return Response.json(
+    { ...spec, paths: { ...spec.paths, ...publicConversationPaths() } },
+    { headers: { "cache-control": "no-store" } },
+  );
 }

@@ -55,6 +55,18 @@ export class SessionService {
   cookie(token: string, maxAge = this.options.ttlSeconds) {
     return `${this.cookieName}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAge}${this.options.secure ? "; Secure" : ""}`;
   }
+  authorizeRequest(request: Request) {
+    const origin = request.headers.get("origin"),
+      site = request.headers.get("sec-fetch-site");
+    if (
+      (origin && origin !== this.options.origin) ||
+      (site && !["same-origin", "none"].includes(site)) ||
+      (request.method !== "GET" &&
+        (origin !== this.options.origin ||
+          request.headers.get("x-boardgame-request") !== "1"))
+    )
+      throw new SessionError(403, "ORIGIN_REJECTED");
+  }
   token(request: Request) {
     const values = (request.headers.get("cookie") ?? "")
       .split(";")
@@ -63,7 +75,7 @@ export class SessionService {
     if (values.length > 1) throw new SessionError(401, "SESSION_INVALID");
     return values[0]?.slice(this.cookieName.length + 1) ?? null;
   }
-  private async actor(
+  async authenticate(
     token: string | null,
     tx: EntityManager = this.db.manager,
     lock = false,
@@ -134,7 +146,7 @@ export class SessionService {
     });
   }
   async current(token: string | null) {
-    return this.describe(await this.actor(token));
+    return this.describe(await this.authenticate(token));
   }
   async revoke(token: string | null) {
     if (token && /^[-_a-zA-Z0-9]{43}$/.test(token))
@@ -144,10 +156,10 @@ export class SessionService {
       );
     return this.cookie("", 0);
   }
-  async reserve(token: string | null, raw: unknown) {
+  async reserve(token: string | null, raw: unknown, manager?: EntityManager) {
     const input = allowanceInput.parse(raw);
-    return this.db.transaction(async (tx) => {
-      const actor = await this.actor(token, tx, true);
+    const work = async (tx: EntityManager) => {
+      const actor = await this.authenticate(token, tx, true);
       // One database lock across replicas protects the shared daily question budget.
       await tx.query("SELECT pg_advisory_xact_lock(724501008)");
       const [old] = await tx.query(
@@ -169,7 +181,8 @@ export class SessionService {
         [input.id, actor.principalId, input.requestHash],
       );
       return this.allowance(row);
-    });
+    };
+    return manager ? work(manager) : this.db.transaction(work);
   }
   private allowance(row: any) {
     return {
@@ -183,9 +196,13 @@ export class SessionService {
     };
   }
   // Internal orchestration only. Public clients cannot dispatch, refund or settle allowances.
-  async transition(id: string, target: "dispatched" | "settled" | "released") {
+  async transition(
+    id: string,
+    target: "dispatched" | "settled" | "released",
+    manager?: EntityManager,
+  ) {
     id = z.uuid().parse(id).toLowerCase();
-    return this.db.transaction(async (tx) => {
+    const work = async (tx: EntityManager) => {
       const [row] = await tx.query(
         "SELECT * FROM question_allowances WHERE id=$1 FOR UPDATE",
         [id],
@@ -213,7 +230,8 @@ export class SessionService {
         [id, target],
       );
       return this.allowance(updated);
-    });
+    };
+    return manager ? work(manager) : this.db.transaction(work);
   }
 }
 export function sessionConfigFromEnvironment() {

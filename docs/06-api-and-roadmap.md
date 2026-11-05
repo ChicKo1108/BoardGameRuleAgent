@@ -1,6 +1,6 @@
 # API 与实施计划
 
-以下表格区分已实现接口与后续规划；实际 schema 以鉴权后的 /api/admin/openapi 为准。混合检索、检索/回答评测、人工复核及 Pi 管理员问答验收已接通；知识发布门禁、版本切换/回滚/停用也已实现，见 [发布治理](15-knowledge-publication.md)；真实 Azul 质量验收与公众聊天仍待完成。回答评测接口和恢复方式见 [运行手册](14-answer-evaluations.md)。
+以下表格区分已实现接口与后续规划；实际 schema 以鉴权后的 /api/admin/openapi 为准。混合检索、检索/回答评测、人工复核及 Pi 管理员问答验收已接通；知识发布门禁、版本切换/回滚/停用也已实现，见 [发布治理](15-knowledge-publication.md)；游客公众问答与历史已接通，见 [公众问答](17-public-conversations.md)；真实 Azul 质量验收和微信登录仍待完成。回答评测接口和恢复方式见 [运行手册](14-answer-evaluations.md)。
 
 | 方法与路径 | 用途 | 状态 |
 | --- | --- | --- |
@@ -27,7 +27,7 @@
 | POST /api/admin/rulesets/{id}/publication-transitions | 通过门禁后发布/回滚/停用 | 已实现 |
 | GET/POST/DELETE /api/session | 游客凭证、额度查询、撤销 | 已实现 |
 | GET /api/openapi | 公众接口契约 | 已实现 |
-| POST /api/conversations/{id}/messages | 正式问答 | 规划 |
+| POST /api/conversations/{id}/messages | 绑定发布版本与额度的游客问答 | 已实现 |
 
 统一考虑鉴权、输入校验、幂等、分页、错误码和 request_id。Swagger/OpenAPI 必须反映实际实现，不公开伪造成功响应。
 

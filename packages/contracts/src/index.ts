@@ -56,3 +56,5 @@ export type { AnswerEvalOutcome, AnswerReview } from "./answer-evaluations.ts";
 export * as publicationSchemas from "./publications.ts";
 
 export {sessionView} from "./sessions.ts";
+
+export * as conversationSchemas from "./conversations.ts";

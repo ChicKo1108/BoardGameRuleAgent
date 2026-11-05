@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import type { DataSource } from "typeorm";
 import {
   answeringSchemas as a,
@@ -29,7 +30,9 @@ export class AnswerService {
       base = await knowledge.index(retrieval.indexBuildId);
     let profileHash = null;
     if (retrieval.vectorIndexId) {
-      const vector = await this.vectors.configuredIndex(retrieval.vectorIndexId);
+      const vector = await this.vectors.configuredIndex(
+        retrieval.vectorIndexId,
+      );
       if (vector.indexBuildId !== base.id || vector.state !== "ready")
         throw new RetrievalError(422, "ANSWER_VECTOR_MISMATCH");
       profileHash = vector.profileHash;
@@ -49,9 +52,29 @@ export class AnswerService {
     };
     return { base, config: a.runResult.shape.config.parse(config) };
   }
-  async preview(raw: unknown, requestId: string, signal?: AbortSignal) {
+  async preview(
+    raw: unknown,
+    requestId: string,
+    signal?: AbortSignal,
+    execution?: { expectedConfig?: unknown; actor?: "public" },
+  ) {
     const input = a.previewInput.parse(raw),
       id = input.idempotencyKey;
+    const [observed] = await this.db.query(
+      "SELECT input=$2::jsonb AS same FROM answer_runs WHERE id=$1",
+      [id, JSON.stringify(input)],
+    );
+    if (observed) {
+      if (!observed.same)
+        throw new RetrievalError(409, "ANSWER_IDEMPOTENCY_CONFLICT");
+      return this.get(id);
+    }
+    const { base, config } = await this.configuration(input.retrieval);
+    if (
+      execution?.expectedConfig &&
+      !isDeepStrictEqual(config, execution.expectedConfig)
+    )
+      throw new RetrievalError(409, "ANSWER_CONFIGURATION_CHANGED");
     const created = await this.db.transaction(async (tx) => {
       await tx.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [
         id,
@@ -65,7 +88,6 @@ export class AnswerService {
           throw new RetrievalError(409, "ANSWER_IDEMPOTENCY_CONFLICT");
         return false;
       }
-      const { base, config } = await this.configuration(input.retrieval);
       const budgets = config.budgets;
       await tx.query(
         "INSERT INTO answer_runs(id,request_id,release_id,index_build_id,vector_index_id,input,config,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,now()+($8::int * interval '1 millisecond'))",
@@ -81,8 +103,8 @@ export class AnswerService {
         ],
       );
       await tx.query(
-        "INSERT INTO admin_audit_events(request_id,actor,action,target_id) VALUES($1,'admin','answer.preview',$2)",
-        [requestId, id],
+        "INSERT INTO admin_audit_events(request_id,actor,action,target_id) VALUES($1,$3,'answer.preview',$2)",
+        [requestId, id, execution?.actor ?? "admin"],
       );
       return true;
     });
@@ -186,12 +208,15 @@ export class AnswerService {
     });
   }
   async get(id: string) {
+    return AnswerService.read(this.db, id);
+  }
+  static async read(db: DataSource, id: string) {
     // A crashed synchronous process must not leave a permanently running request.
-    await this.db.query(
+    await db.query(
       "UPDATE answer_runs SET state='failed',reason_code='ANSWER_RUN_EXPIRED',finished_at=now() WHERE id=$1 AND state='running' AND expires_at<=now()",
       [id],
     );
-    const [row] = await this.db.query(
+    const [row] = await db.query(
       `SELECT id,request_id AS "requestId",release_id AS "releaseId",index_build_id AS "indexBuildId",vector_index_id AS "vectorIndexId",state,input,config,answer,reason_code AS "reasonCode",usage,created_at AS "createdAt",finished_at AS "finishedAt",expires_at AS "expiresAt" FROM answer_runs WHERE id=$1`,
       [id],
     );
