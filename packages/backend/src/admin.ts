@@ -12,6 +12,9 @@ import {
 } from "@boardgame/db";
 import type { DataSource, EntityManager } from "typeorm";
 
+import { IngestionError, type IngestionService } from "./ingestion.ts";
+import { parserResultSchema } from "./parser.ts";
+
 class HttpError extends Error {
   constructor(
     readonly status: number,
@@ -20,7 +23,16 @@ class HttpError extends Error {
     super(code);
   }
 }
-type Context = { db: DataSource; id: string; requestId: string };
+type Context = {
+  db: DataSource;
+  id: string;
+  requestId: string;
+  getIngestion?: () => Promise<IngestionService>;
+};
+async function ingestion(c: Pick<Context, "getIngestion">) {
+  if (!c.getIngestion) throw new HttpError(503, "INGESTION_NOT_CONFIGURED");
+  return c.getIngestion();
+}
 interface Operation {
   method: string;
   path: string;
@@ -75,6 +87,59 @@ async function exists(
 export const operations: Operation[] = [
   operation(
     "POST",
+    "/revisions/{id}/parse",
+    "创建持久 PDF 解析任务（幂等）",
+    s.empty,
+    z.object({ jobId: s.uuid }),
+    async (c) => (await ingestion(c)).enqueue(c.id, c.requestId),
+    202,
+  ),
+  operation(
+    "GET",
+    "/jobs/{id}",
+    "查询解析任务状态",
+    s.empty,
+    z.object({
+      id: s.uuid,
+      revision_id: s.uuid,
+      state: z.string(),
+      attempts: z.number(),
+      error_code: z.string().nullable(),
+      created_at: z.string(),
+      updated_at: z.string(),
+      queueState: z.string().nullable(),
+    }),
+    async (c) => (await ingestion(c)).job(c.id),
+  ),
+  operation(
+    "POST",
+    "/jobs/{id}/retry",
+    "重试已终止的失败任务",
+    s.empty,
+    z.object({ jobId: s.uuid }),
+    async (c) => (await ingestion(c)).retry(c.id, c.requestId),
+    202,
+  ),
+  operation(
+    "GET",
+    "/revisions/{id}/parse-result",
+    "读取原始解析结果与警告",
+    s.empty,
+    parserResultSchema,
+    async (c) => (await ingestion(c)).result(c.id),
+  ),
+  operation(
+    "POST",
+    "/revisions/{id}/parser-review",
+    "确认已人工检查解析警告",
+    z.strictObject({ note: z.string().trim().min(10).max(4000) }),
+    z.object({ revisionId: s.uuid, acknowledged: z.boolean() }),
+    async (c, data) =>
+      (await ingestion(c)).acknowledge(c.id, data.note, c.requestId),
+  ),
+
+  operation(
+    "POST",
     "/games",
     "创建游戏",
     s.createGame,
@@ -92,13 +157,11 @@ export const operations: Operation[] = [
     s.pageQuery,
     s.listResult(s.gameResult),
     async (c, q) => {
-      const [items, total] = await c.db
-        .getRepository(GameEntity)
-        .findAndCount({
-          order: { createdAt: "ASC", id: "ASC" },
-          take: q.limit,
-          skip: q.offset,
-        });
+      const [items, total] = await c.db.getRepository(GameEntity).findAndCount({
+        order: { createdAt: "ASC", id: "ASC" },
+        take: q.limit,
+        skip: q.offset,
+      });
       return { items, total, ...q };
     },
   ),
@@ -328,12 +391,10 @@ export const operations: Operation[] = [
     s.relationInput,
     async (c, data) => {
       await c.db.transaction(async (tx) => {
-        const rev = await tx
-          .getRepository(DocumentRevisionEntity)
-          .findOne({
-            where: { id: c.id },
-            lock: { mode: "pessimistic_write" },
-          });
+        const rev = await tx.getRepository(DocumentRevisionEntity).findOne({
+          where: { id: c.id },
+          lock: { mode: "pessimistic_write" },
+        });
         if (!rev) throw new HttpError(404, "NOT_FOUND");
         if (rev.status !== "awaiting_review")
           throw new HttpError(409, "REVISION_NOT_EDITABLE");
@@ -442,13 +503,60 @@ export function openApiDocument() {
     };
     (paths[`/api/admin${op.path}`] ??= {})[op.method.toLowerCase()] = endpoint;
   }
+  paths["/api/admin/documents/{id}/file"] = {
+    put: {
+      summary: "上传原始 PDF，校验登记的 SHA-256（20 MiB 上限）",
+      security: [{ adminBearer: [] }],
+      parameters: [
+        {
+          in: "path",
+          name: "id",
+          required: true,
+          schema: { type: "string", format: "uuid" },
+        },
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          "application/pdf": { schema: { type: "string", format: "binary" } },
+        },
+      },
+      responses: {
+        200: { description: "文件已保存（重复上传幂等）" },
+        401: { description: "未认证" },
+        413: { description: "超出大小" },
+        422: { description: "哈希或文件头不符" },
+      },
+    },
+    get: {
+      summary: "下载原始 PDF（管理员）",
+      security: [{ adminBearer: [] }],
+      parameters: [
+        {
+          in: "path",
+          name: "id",
+          required: true,
+          schema: { type: "string", format: "uuid" },
+        },
+      ],
+      responses: {
+        200: {
+          description: "原始 PDF",
+          content: {
+            "application/pdf": { schema: { type: "string", format: "binary" } },
+          },
+        },
+        404: { description: "尚未上传" },
+      },
+    },
+  };
   return {
     openapi: "3.1.0",
     info: {
       title: "Board Game Rules Admin API",
       version: "0.2.0",
       description:
-        "管理员后端 API。文档登记与结构化来源导入不等同于 PDF 上传/自动解析。",
+        "管理员后端 API。登记资料后上传 PDF，再创建异步解析任务；解析结果必须人工审核。",
     },
     paths,
     components: {
@@ -471,11 +579,19 @@ async function body(request: Request) {
     )
   )
     throw new HttpError(415, "JSON_REQUIRED");
+  const bytes = await readBytes(request, MAX_BODY);
+  try {
+    return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+  } catch {
+    throw new HttpError(400, "INVALID_JSON");
+  }
+}
+async function readBytes(request: Request, max: number): Promise<Buffer> {
   const length = request.headers.get("content-length");
-  if (length && (!/^\d+$/.test(length) || Number(length) > MAX_BODY))
+  if (length && (!/^\d+$/.test(length) || Number(length) > max))
     throw new HttpError(413, "BODY_TOO_LARGE");
   const reader = request.body?.getReader();
-  if (!reader) throw new HttpError(400, "INVALID_JSON");
+  if (!reader) throw new HttpError(400, "BODY_REQUIRED");
   const chunks: Uint8Array[] = [];
   let size = 0;
   try {
@@ -483,7 +599,7 @@ async function body(request: Request) {
       const { done, value } = await reader.read();
       if (done) break;
       size += value.length;
-      if (size > MAX_BODY) {
+      if (size > max) {
         await reader.cancel();
         throw new HttpError(413, "BODY_TOO_LARGE");
       }
@@ -492,16 +608,12 @@ async function body(request: Request) {
   } finally {
     reader.releaseLock();
   }
-  try {
-    return JSON.parse(
-      new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks)),
-    );
-  } catch {
-    throw new HttpError(400, "INVALID_JSON");
-  }
+  return Buffer.concat(chunks);
 }
+
 export interface AdminDependencies {
   getDb: () => Promise<DataSource>;
+  getIngestion?: () => Promise<IngestionService>;
   adminToken: () => string | undefined;
   reportError?: (error: unknown, requestId: string) => void;
 }
@@ -526,6 +638,35 @@ export async function handleAdmin(
     const url = new URL(request.url);
     if (url.pathname === "/api/admin/openapi" && request.method === "GET")
       return respond(openApiDocument());
+    const fileMatch = /^\/api\/admin\/documents\/([^/]+)\/file$/.exec(
+      url.pathname,
+    );
+    if (fileMatch && ["PUT", "GET"].includes(request.method)) {
+      const id = s.uuid.parse(fileMatch[1]);
+      if (request.method === "PUT") {
+        if (
+          !/^application\/pdf(?:\s*;|$)/i.test(
+            request.headers.get("content-type") ?? "",
+          )
+        )
+          throw new HttpError(415, "PDF_REQUIRED");
+        const bytes = await readBytes(request, 20 * 1024 * 1024);
+        return respond({
+          data: await (await ingestion(deps)).upload(id, bytes, requestId),
+          requestId,
+        });
+      }
+      const bytes = await (await ingestion(deps)).download(id);
+      return new Response(new Uint8Array(bytes), {
+        headers: {
+          "content-type": "application/pdf",
+          "content-disposition": "attachment; filename=rules.pdf",
+          "cache-control": "no-store",
+          "x-content-type-options": "nosniff",
+          "x-request-id": requestId,
+        },
+      });
+    }
     for (const op of operations) {
       if (op.method !== request.method) continue;
       const match = new RegExp(
@@ -540,7 +681,10 @@ export async function handleAdmin(
       // Reject invalid input before opening database connections.
       op.input.parse(raw);
       const db = await deps.getDb();
-      const data = await op.invoke({ db, id, requestId }, raw);
+      const data = await op.invoke(
+        { db, id, requestId, getIngestion: deps.getIngestion },
+        raw,
+      );
       let serialized: unknown;
       try {
         serialized = op.output.parse(JSON.parse(JSON.stringify(data)));
@@ -552,7 +696,7 @@ export async function handleAdmin(
     }
     throw new HttpError(404, "NOT_FOUND");
   } catch (error) {
-    if (error instanceof HttpError)
+    if (error instanceof HttpError || error instanceof IngestionError)
       return respond({ error: { code: error.code }, requestId }, error.status);
     if (error instanceof z.ZodError)
       return respond(
