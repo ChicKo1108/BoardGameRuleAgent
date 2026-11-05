@@ -1,11 +1,11 @@
-import { type DataSource } from "typeorm";
+import { type DataSource, type EntityManager } from "typeorm";
 import { randomUUID } from "node:crypto";
 import { DocumentRevisionEntity, GameEntity, RulesetEntity, SourceDocumentEntity, SourceBlockEntity, RuleUnitEntity,
-  type SourceBlock, type RuleUnit } from "./entities.js";
+  type SourceBlock, type RuleUnit } from "./entities.ts";
 
 /** Called only after application-layer authentication and input validation. */
 export class KnowledgeRepository {
-  constructor(private readonly db: DataSource) {}
+  constructor(private readonly db: DataSource | EntityManager) {}
   async createGame(input: { slug: string; name: string }) {
     return this.db.getRepository(GameEntity).save({ id: randomUUID(), ...input });
   }

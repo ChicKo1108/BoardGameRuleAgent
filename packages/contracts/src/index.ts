@@ -34,3 +34,5 @@ export interface RuleAnswer {
   citations: Array<{ evidenceId: string; supports: string }>;
   followUp?: string;
 }
+
+export * as adminSchemas from "./admin.ts";

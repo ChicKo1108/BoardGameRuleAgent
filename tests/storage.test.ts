@@ -65,8 +65,8 @@ test("revision approval serializes concurrent content edits", async () => {
 test("migration rollback and reapply work on an empty isolated database", async () => {
   const other = await testDatabase();
   try {
-    await other.db.runMigrations(); await other.db.undoLastMigration();
+    await other.db.runMigrations(); await other.db.undoLastMigration(); await other.db.undoLastMigration();
     assert.equal((await other.db.query("SELECT to_regclass('public.games') AS name"))[0].name, null);
-    assert.equal((await other.db.runMigrations()).length, 1);
+    assert.equal((await other.db.runMigrations()).length, 2);
   } finally { await other.close(); }
 });
