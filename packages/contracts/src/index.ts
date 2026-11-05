@@ -1,8 +1,6 @@
 // Application-owned contracts; no framework or database dependencies.
 export type AnswerStatus =
-  | "answered"
-  | "needs_context"
-  | "insufficient_evidence";
+  "answered" | "needs_context" | "insufficient_evidence";
 export interface SourceReference {
   blockId: string;
   pdfPageIndex: number;
@@ -31,15 +29,7 @@ export interface EvidenceBundle {
   }>;
   gaps: string[];
 }
-export interface RuleAnswer {
-  status: AnswerStatus;
-  ambiguity?: string;
-  assumedMeaning?: string;
-  answer: string;
-  basis: "explicit" | "inferred" | "mixed";
-  citations: Array<{ evidenceId: string; supports: string }>;
-  followUp?: string;
-}
+export type RuleAnswer = import("./answering.ts").VerifiedAnswer;
 
 export * as adminSchemas from "./admin.ts";
 
@@ -51,3 +41,11 @@ export type { EmbeddingProfile } from "./vectors.ts";
 
 export * as evaluationSchemas from "./evaluations.ts";
 export type { EvalCase, EvalConfig, CaseResult } from "./evaluations.ts";
+
+export * as answeringSchemas from "./answering.ts";
+export type {
+  AnswerDraft,
+  VerifiedAnswer,
+  AnswerBudgets,
+  ChatModelProfile,
+} from "./answering.ts";

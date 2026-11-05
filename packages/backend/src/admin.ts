@@ -5,6 +5,7 @@ import {
   knowledgeSchemas as k,
   vectorSchemas as v,
   evaluationSchemas as e,
+  answeringSchemas as a,
 } from "@boardgame/contracts";
 import {
   KnowledgeRepository,
@@ -27,6 +28,7 @@ import {
 
 import type { VectorService } from "./vectors.ts";
 import type { EvaluationService } from "./evaluations.ts";
+import type { AnswerService } from "./answers.ts";
 class HttpError extends Error {
   constructor(
     readonly status: number,
@@ -42,6 +44,7 @@ type Context = {
   getIngestion?: () => Promise<IngestionService>;
   getVectors?: () => Promise<VectorService>;
   getEvaluations?: () => Promise<EvaluationService>;
+  getAnswers?: () => Promise<AnswerService>;
   signal?: AbortSignal;
 };
 async function ingestion(c: Pick<Context, "getIngestion">) {
@@ -55,6 +58,10 @@ async function vectors(c: Pick<Context, "getVectors">) {
 async function evaluations(c: Pick<Context, "getEvaluations">) {
   if (!c.getEvaluations) throw new HttpError(503, "EVALUATIONS_NOT_CONFIGURED");
   return c.getEvaluations();
+}
+async function answers(c: Pick<Context, "getAnswers">) {
+  if (!c.getAnswers) throw new HttpError(503, "ANSWERS_NOT_CONFIGURED");
+  return c.getAnswers();
 }
 interface Operation {
   method: string;
@@ -108,6 +115,31 @@ async function exists(
   return record;
 }
 export const operations: Operation[] = [
+  operation(
+    "POST",
+    "/answer-runs",
+    "同步执行固定知识版本的管理员问答验收",
+    a.previewInput,
+    a.runResult,
+    async (c, data) => (await answers(c)).preview(data, c.requestId, c.signal),
+  ),
+  operation(
+    "GET",
+    "/answer-runs/{id}",
+    "查看问答状态、已验证结果和配置",
+    s.empty,
+    a.runResult,
+    async (c) => (await answers(c)).get(c.id),
+  ),
+  operation(
+    "GET",
+    "/answer-runs/{id}/events",
+    "分页读取检索、工具和模型用量审计",
+    s.pageQuery,
+    s.listResult(a.eventResult),
+    async (c, q) => (await answers(c)).events(c.id, q),
+  ),
+
   operation(
     "POST",
     "/releases/{id}/evaluation-datasets",
@@ -794,6 +826,7 @@ export interface AdminDependencies {
   getIngestion?: () => Promise<IngestionService>;
   getVectors?: () => Promise<VectorService>;
   getEvaluations?: () => Promise<EvaluationService>;
+  getAnswers?: () => Promise<AnswerService>;
   signal?: AbortSignal;
   adminToken: () => string | undefined;
   reportError?: (error: unknown, requestId: string) => void;
@@ -870,6 +903,7 @@ export async function handleAdmin(
           getIngestion: deps.getIngestion,
           getVectors: deps.getVectors,
           getEvaluations: deps.getEvaluations,
+          getAnswers: deps.getAnswers,
           signal: request.signal,
         },
         raw,

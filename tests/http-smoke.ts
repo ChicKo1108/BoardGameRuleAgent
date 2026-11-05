@@ -19,6 +19,8 @@ import {
 import { testDatabase } from "./helpers/database.js";
 
 import { embeddingServer } from "./helpers/embedding.js";
+import { chatServer } from "./helpers/chat.js";
+const chatHttp = await chatServer();
 const embeddingHttp = await embeddingServer();
 const fixture = await testDatabase();
 await fixture.db.runMigrations();
@@ -55,6 +57,14 @@ const child = spawn(
     env: {
       ...process.env,
       ADMIN_API_TOKEN: token,
+      CHAT_BASE_URL: chatHttp.config.baseUrl,
+      CHAT_API_KEY: chatHttp.config.apiKey,
+      CHAT_PROVIDER_ID: chatHttp.config.providerId,
+      CHAT_MODEL: chatHttp.config.model,
+      CHAT_MODEL_REVISION: chatHttp.config.revision,
+      CHAT_CONTEXT_WINDOW: String(chatHttp.config.contextWindow),
+      CHAT_INPUT_USD_PER_MILLION: String(chatHttp.config.inputUsdPerMillion),
+      CHAT_OUTPUT_USD_PER_MILLION: String(chatHttp.config.outputUsdPerMillion),
       DATABASE_URL: (fixture.db.options as { url: string }).url,
       NEXT_TELEMETRY_DISABLED: "1",
       STORAGE_ROOT: storage,
@@ -279,6 +289,39 @@ try {
     const trace = JSON.parse(await traced.text()).data;
     assert.ok(trace.requestId);
     assert.equal(trace.status, "succeeded");
+    const answerInput = {
+      idempotencyKey: randomUUID(),
+      question: "Synthetic tile",
+      history: [],
+      retrieval: {
+        indexBuildId: index.id,
+        vectorIndexId: vectorIndex.vectorIndexId,
+        mode: "hybrid",
+      },
+    };
+    const answerRun = await post("/answer-runs", answerInput, 200);
+    assert.equal(answerRun.state, "completed", JSON.stringify(answerRun));
+    assert.equal(answerRun.answer.status, "answered");
+    assert.equal(answerRun.answer.citations[0].sources[0].blockId, block.id);
+    assert.equal(answerRun.releaseId, release.id);
+    const beforeChat = chatHttp.requests.length;
+    const duplicateAnswer = await post("/answer-runs", answerInput, 200);
+    assert.equal(duplicateAnswer.id, answerRun.id);
+    assert.equal(chatHttp.requests.length, beforeChat);
+    const answerAudit = await fetch(
+      `${base}/api/admin/answer-runs/${answerRun.id}/events`,
+      { headers },
+    );
+    assert.equal(answerAudit.status, 200);
+    const answerEvents = JSON.parse(await answerAudit.text()).data;
+    assert.ok(
+      answerEvents.items.some(
+        (event: { kind: string }) => event.kind === "answer_validation",
+      ),
+    );
+    console.info(
+      "PASS production HTTP: real Pi agent, mandatory hybrid retrieval, SSE model, validated source citations, durable idempotent answer",
+    );
     const dataset = await post(`/releases/${release.id}/evaluation-datasets`, {
       name: "HTTP synthetic retrieval evaluation",
       revision: "1",
@@ -382,6 +425,7 @@ try {
   }
   await queue.stop();
   await embeddingHttp.close();
+  await chatHttp.close();
   await fixture.close();
   await rm(storage, { recursive: true, force: true });
 }

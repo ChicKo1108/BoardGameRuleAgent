@@ -11,6 +11,7 @@
 已实现审核知识快照、中文关键词检索基线、同版本证据与关联补全，见 [知识版本与检索](docs/10-knowledge-retrieval.md)。
 已实现可恢复向量构建、pgvector 与 RRF 混合检索，见 [向量接入文档](docs/11-hybrid-retrieval.md)。
 已实现固定评测集、异步检索评测及逐题报告，见 [检索评测](docs/12-retrieval-evaluations.md)。
+已实现 Pi 管理员问答验收、预算与引用校验，见 [Pi 问答后端](docs/13-pi-answering.md)。
 尚未完成真实模型质量评测、发布门禁、聊天、公众登录、Swagger UI 和 Sentry 集成。
 当前首页是工程状态页，不是产品设计稿。真实规则书仅用于本地隔离验证，原文和模型密钥均不进入仓库。
 

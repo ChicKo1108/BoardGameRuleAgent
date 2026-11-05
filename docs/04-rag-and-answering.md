@@ -1,6 +1,6 @@
 # RAG 与回答链路
 
-当前已实现知识快照、关键词、pgvector 与 RRF 混合检索和关联补全，见 [向量运行说明](11-hybrid-retrieval.md)。真实质量评测、重排、Agent 与发布仍待完成。
+当前已实现知识快照、关键词、pgvector 与 RRF 混合检索和关联补全，见 [向量运行说明](11-hybrid-retrieval.md)。Pi 受控问答及管理员验收已实现，见 [问答运行说明](13-pi-answering.md)。真实答案质量评测、重排与公众发布仍待完成。
 
 ## 检索流程
 

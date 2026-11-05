@@ -6,7 +6,14 @@ const config: NextConfig = {
     "@boardgame/backend",
     "@boardgame/retrieval",
     "@boardgame/evaluations",
+    "@boardgame/agent",
   ],
-  serverExternalPackages: ["typeorm", "pg", "pg-boss"],
+  serverExternalPackages: [
+    "typeorm",
+    "pg",
+    "pg-boss",
+    "@earendil-works/pi-agent-core",
+    "@earendil-works/pi-ai",
+  ],
 };
 export default config;

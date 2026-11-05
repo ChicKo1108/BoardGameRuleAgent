@@ -3,6 +3,7 @@ import { getDatabase } from "../../../../server/database";
 import { getIngestion } from "../../../../server/ingestion";
 import { getVectors } from "../../../../server/vectors";
 import { getEvaluations } from "../../../../server/evaluations";
+import { getAnswers } from "../../../../server/answers";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 async function handler(request: Request) {
@@ -11,6 +12,7 @@ async function handler(request: Request) {
     getIngestion,
     getVectors,
     getEvaluations,
+    getAnswers,
     adminToken: () => process.env.ADMIN_API_TOKEN,
     reportError: (_error, requestId) =>
       console.error(JSON.stringify({ event: "admin_api_failure", requestId })),
