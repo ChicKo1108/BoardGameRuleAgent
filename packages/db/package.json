@@ -1,0 +1,18 @@
+{
+  "name": "@boardgame/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "typeorm": "1.1.2",
+    "pg": "^8.0.0",
+    "reflect-metadata": "^0.2.0",
+    "dotenv": "^17.0.0"
+  }
+}

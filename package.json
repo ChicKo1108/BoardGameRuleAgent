@@ -1,0 +1,25 @@
+{
+  "name": "boardgame-rules-agent",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22.19.0 <23",
+    "npm": ">=10"
+  },
+  "scripts": {
+    "dev": "npm run dev --workspace=@boardgame/web",
+    "build": "npm run build --workspace=@boardgame/web",
+    "start": "npm run start --workspace=@boardgame/web",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "worker:check": "npm run check --workspace=@boardgame/worker"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.0",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.0.0"
+  }
+}
