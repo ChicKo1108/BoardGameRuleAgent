@@ -287,12 +287,11 @@ try {
     );
     assert.equal(response.status, 200);
     const block = JSON.parse(await response.text()).data.items[0];
-    const rule = await post(`/revisions/${revision.id}/rules`, {
-      kind: "rule",
-      reviewedText: block.rawText,
-      reviewStatus: "approved",
-      sourceBlockIds: [block.id],
-    });
+    const templateResponse=await fetch(`${base}/api/admin/revisions/${revision.id}/curation-template`,{headers});assert.equal(templateResponse.status,200);const template=JSON.parse(await templateResponse.text()).data;
+    const curation=await post(`/revisions/${revision.id}/curation-imports`,{idempotencyKey:randomUUID(),bundle:{schemaVersion:1,name:"Synthetic private curation",revision:"1",sourceFingerprint:template.sourceFingerprint,rules:[{alias:"synthetic-rule",kind:"rule",reviewedText:block.rawText,sourceOrdinals:[block.ordinal]}],cases:[{id:"curation-case",category:"recall",split:"development",severity:"critical",messages:[{role:"user",content:"Synthetic tile"}],query:"Synthetic tile",expectedBehavior:"answer",requiredClaims:[],forbiddenClaims:[],acceptableEvidenceAliases:[["synthetic-rule"]],reviewNote:"Synthetic annotation only"}]}});
+    const rule={id:curation.ruleMap["synthetic-rule"]};
+    const [{review_status}]=await fixture.db.query("SELECT review_status FROM rule_units WHERE id=$1",[rule.id]);assert.equal(review_status,"pending");
+    const reviewedRule=await fetch(`${base}/api/admin/rules/${rule.id}`,{method:"PATCH",headers,body:JSON.stringify({reviewStatus:"approved"})});assert.equal(reviewedRule.status,200);
     await post(
       `/revisions/${revision.id}/parser-review`,
       {
@@ -305,6 +304,8 @@ try {
       name: "HTTP synthetic baseline",
       revisionIds: [revision.id],
     });
+    const mappedDataset=await post(`/curation-imports/${curation.id}/evaluation-datasets`,{releaseId:release.id,name:"HTTP reviewed curation",revision:"1",annotationReviewNote:"Reviewed synthetic source and annotations in this fixture only"});assert.equal(mappedDataset.manifest.cases[0].acceptableEvidenceSets[0][0],rule.id);
+    console.info("PASS production HTTP: source-pinned draft curation, separate rule approval and exact-release reviewed annotation mapping");
     const index = await post(`/releases/${release.id}/indexes`, {});
     const search = await post(
       `/index-builds/${index.id}/search`,

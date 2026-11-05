@@ -15,6 +15,15 @@ const rect = z
 export const parserConfigSchema = z
   .strictObject({
     engine: z.literal("pdfplumber").default("pdfplumber"),
+    pageLabels: z
+      .array(
+        z.strictObject({
+          pageIndex: z.number().int().min(0).max(99),
+          label: z.string().trim().min(1).max(40),
+        }),
+      )
+      .max(100)
+      .default([]),
     pageRegions: z
       .array(
         z.strictObject({
@@ -26,6 +35,11 @@ export const parserConfigSchema = z
       .default([]),
   })
   .superRefine((config, ctx) => {
+    if (
+      new Set(config.pageLabels.map((p) => p.pageIndex)).size !==
+      config.pageLabels.length
+    )
+      ctx.addIssue({ code: "custom", message: "Duplicate page label" });
     const seen = new Set<number>();
     for (const page of config.pageRegions) {
       if (seen.has(page.pageIndex))
@@ -48,7 +62,7 @@ export const parserConfigSchema = z
   });
 export type ParserConfig = z.infer<typeof parserConfigSchema>;
 export const parserResultSchema = z.object({
-  pipelineVersion: z.literal("pdfplumber-regions-v1"),
+  pipelineVersion: z.enum(["pdfplumber-regions-v1", "pdfplumber-regions-v2"]),
   parserVersion: z.string(),
   pages: z
     .array(

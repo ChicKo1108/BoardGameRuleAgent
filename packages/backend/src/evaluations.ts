@@ -40,11 +40,16 @@ export class EvaluationService {
     private readonly queue: PgBoss,
     private readonly vectors?: VectorService,
   ) {}
-  async createDataset(releaseId: string, input: unknown, requestId: string) {
+  async createDataset(
+    releaseId: string,
+    input: unknown,
+    requestId: string,
+    manager?: EntityManager,
+  ) {
     const manifest = e.datasetInput.parse(input);
     if (Buffer.byteLength(JSON.stringify(manifest)) > 900000)
       throw new RetrievalError(413, "DATASET_TOO_LARGE");
-    return this.db.transaction(async (tx) => {
+    const work = async (tx: EntityManager) => {
       const [release] = await tx.query(
         "SELECT id FROM knowledge_releases WHERE id=$1 AND state='sealed' FOR UPDATE",
         [releaseId],
@@ -68,7 +73,8 @@ export class EvaluationService {
         [requestId, row.id],
       );
       return this.dataset(row.id, tx);
-    });
+    };
+    return manager ? work(manager) : this.db.transaction(work);
   }
   async dataset(id: string, tx: EntityManager = this.db.manager) {
     const [row] = await tx.query(
