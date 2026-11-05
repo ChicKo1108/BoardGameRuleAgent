@@ -18,6 +18,7 @@
 已实现游客公众问答与历史，见 [公众问答](docs/17-public-conversations.md)。
 已实现微信网站登录适配、账号额度与游客历史归属，见 [微信登录](docs/18-wechat-login.md)。
 已实现来源绑定的私有知识整理包、待审核导入与评测别名映射，见 [知识整理](docs/19-knowledge-curation.md)。
+已实现不批准知识的开发集检索诊断，并跑出真实私有草稿基线，见 [草稿诊断](docs/20-draft-retrieval-diagnostics.md)。
 尚未完成真实知识/标准集审批、微信/模型质量验收、Swagger UI 和 Sentry 集成。
 当前首页是工程状态页，不是产品设计稿。真实规则书仅用于本地隔离验证，原文和模型密钥均不进入仓库。
 

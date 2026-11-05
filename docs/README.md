@@ -11,6 +11,7 @@
 | [RAG 设计](04-rag-and-answering.md) | 检索流程、Agent 工具、证据和答案 |
 | [评测与实验](05-evaluation.md) | 数据集格式、实验矩阵、指标和门禁 |
 | [API 与实施计划](06-api-and-roadmap.md) | API、后台页面、开发里程碑 |
+| [草稿检索诊断](20-draft-retrieval-diagnostics.md) | 只读开发集基线、正式算法复用与预算缺口 |
 | [知识整理与来源绑定](19-knowledge-curation.md) | 私有整理包、待审核导入、别名映射和真实规则草稿 |
 | [微信登录与账号](18-wechat-login.md) | 浏览器绑定、凭证轮换、账号额度与游客历史归属 |
 | [公众问答与历史](17-public-conversations.md) | 已发布范围、服务端历史、消费额度、持久结果与恢复 |
