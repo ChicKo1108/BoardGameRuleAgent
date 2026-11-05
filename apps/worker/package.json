@@ -11,6 +11,7 @@
     "@boardgame/backend": "0.1.0",
     "@boardgame/db": "0.1.0",
     "dotenv": "^17.0.0",
-    "@boardgame/retrieval": "0.1.0"
+    "@boardgame/retrieval": "0.1.0",
+    "@boardgame/agent": "0.1.0"
   }
 }

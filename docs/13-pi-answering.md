@@ -70,7 +70,7 @@ needs_context 和 insufficient_evidence 的正文使用服务端固定措辞、�
 
 记录与最终结果不可覆盖，事件按序追加。重复请求通过数据库锁和 idempotency key 防止并发重复执行；这不代表供应商计费 exactly-once。进程崩溃可发生在外部调用后、结果提交前，不能自动重做。到达运行时限加 30 秒宽限后，GET 会把遗留 running 标记 failed/ANSWER_RUN_EXPIRED，迟到事件/结果不可覆盖。当前没有独立过期清理 Worker，未访问的过期行保留 running 存储状态直到读取。
 
-生产部署应允许同步请求至少覆盖预算与数据库收尾时间；本阶段未接客户端进度 SSE、异步聊天执行或 serverless 平台托管。后续公众会话、身份额度、发布门禁、Sentry、Swagger UI 和答案评测仍待完成。
+生产部署应允许同步请求至少覆盖预算与数据库收尾时间；本阶段未接客户端进度 SSE、异步聊天执行或 serverless 平台托管。后续公众会话、身份额度、发布门禁、Sentry 和 Swagger UI 仍待完成。回答评测与人工复核已实现，见 [回答评测手册](14-answer-evaluations.md)；真实质量验收仍待完成。
 
 ## 已验证与待验证
 

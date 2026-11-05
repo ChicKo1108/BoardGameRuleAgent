@@ -8,11 +8,14 @@ import {
   PythonPdfParser,
   VectorService,
   EvaluationService,
+  AnswerEvaluationService,
+  AnswerService,
 } from "@boardgame/backend";
 import { embeddingProviderFromEnvironment } from "@boardgame/retrieval";
+import { chatProviderFromEnvironment } from "@boardgame/agent";
 if (process.argv.includes("--check")) {
   console.info(
-    "Worker modules load. Run queue:setup first. WORKER_TASKS selects pdf (default), vectors, evaluations, or a comma-separated combination.",
+    "Worker modules load. Run queue:setup first. WORKER_TASKS selects pdf (default), vectors, evaluations, answer-evaluations, or a comma-separated combination.",
   );
 } else {
   const db = createDataSource(process.env.DATABASE_URL ?? "");
@@ -25,11 +28,14 @@ if (process.argv.includes("--check")) {
       );
       if (
         [...tasks].some(
-          (task) => !["pdf", "vectors", "evaluations"].includes(task),
+          (task) =>
+            !["pdf", "vectors", "evaluations", "answer-evaluations"].includes(
+              task,
+            ),
         )
       )
         throw new Error(
-          "WORKER_TASKS must contain pdf, vectors, or evaluations",
+          "WORKER_TASKS must contain pdf, vectors, evaluations, or answer-evaluations",
         );
       await db.initialize();
       const workers: Array<{
@@ -72,6 +78,24 @@ if (process.argv.includes("--check")) {
             db,
             queue,
             new VectorService(db, queue, embeddingProviderFromEnvironment()),
+          ),
+        );
+      }
+      if (tasks.has("answer-evaluations")) {
+        const provider = chatProviderFromEnvironment();
+        if (!provider)
+          throw new Error(
+            "CHAT configuration is required for answer-evaluations worker",
+          );
+        workers.push(
+          new AnswerEvaluationService(
+            db,
+            queue,
+            new AnswerService(
+              db,
+              new VectorService(db, queue, embeddingProviderFromEnvironment()),
+              provider,
+            ),
           ),
         );
       }

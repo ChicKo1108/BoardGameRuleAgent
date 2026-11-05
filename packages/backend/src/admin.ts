@@ -6,6 +6,7 @@ import {
   vectorSchemas as v,
   evaluationSchemas as e,
   answeringSchemas as a,
+  answerEvaluationSchemas as ae,
 } from "@boardgame/contracts";
 import {
   KnowledgeRepository,
@@ -29,6 +30,7 @@ import {
 import type { VectorService } from "./vectors.ts";
 import type { EvaluationService } from "./evaluations.ts";
 import type { AnswerService } from "./answers.ts";
+import type { AnswerEvaluationService } from "./answer-evaluations.ts";
 class HttpError extends Error {
   constructor(
     readonly status: number,
@@ -45,6 +47,7 @@ type Context = {
   getVectors?: () => Promise<VectorService>;
   getEvaluations?: () => Promise<EvaluationService>;
   getAnswers?: () => Promise<AnswerService>;
+  getAnswerEvaluations?: () => Promise<AnswerEvaluationService>;
   signal?: AbortSignal;
 };
 async function ingestion(c: Pick<Context, "getIngestion">) {
@@ -62,6 +65,11 @@ async function evaluations(c: Pick<Context, "getEvaluations">) {
 async function answers(c: Pick<Context, "getAnswers">) {
   if (!c.getAnswers) throw new HttpError(503, "ANSWERS_NOT_CONFIGURED");
   return c.getAnswers();
+}
+async function answerEvaluations(c: Pick<Context, "getAnswerEvaluations">) {
+  if (!c.getAnswerEvaluations)
+    throw new HttpError(503, "ANSWER_EVALUATIONS_NOT_CONFIGURED");
+  return c.getAnswerEvaluations();
 }
 interface Operation {
   method: string;
@@ -115,6 +123,69 @@ async function exists(
   return record;
 }
 export const operations: Operation[] = [
+  operation(
+    "POST",
+    "/evaluation-datasets/{id}/answer-evaluations",
+    "异步生成固定测试集的问答结果",
+    ae.enqueueInput,
+    z.object({ evaluationId: s.uuid }),
+    async (c, data) =>
+      (await answerEvaluations(c)).enqueue(c.id, data, c.requestId),
+    202,
+  ),
+  operation(
+    "GET",
+    "/answer-evaluations/{id}",
+    "读取答案评测进度及自动/人工统计",
+    s.empty,
+    ae.runResult,
+    async (c) => (await answerEvaluations(c)).get(c.id),
+  ),
+  operation(
+    "GET",
+    "/answer-evaluations/{id}/cases",
+    "分页读取题目、实际答案与最新人工审核",
+    s.pageQuery,
+    s.listResult(ae.caseResult),
+    async (c, q) => (await answerEvaluations(c)).cases(c.id, q),
+  ),
+  operation(
+    "POST",
+    "/answer-evaluations/{id}/retry",
+    "恢复失败的答案评测，不重做已存在的问答运行",
+    s.empty,
+    z.object({ evaluationId: s.uuid }),
+    async (c) => (await answerEvaluations(c)).retry(c.id, c.requestId),
+    202,
+  ),
+  operation(
+    "POST",
+    "/answer-evaluation-cases/{id}/reviews",
+    "逐项提交人工审核或追加更正",
+    ae.reviewInput,
+    ae.reviewResult,
+    async (c, data) =>
+      (await answerEvaluations(c)).review(c.id, data, c.requestId),
+    201,
+  ),
+  operation(
+    "GET",
+    "/answer-evaluation-cases/{id}/reviews",
+    "读取人工审核修订历史",
+    s.pageQuery,
+    s.listResult(ae.reviewResult),
+    async (c, q) => (await answerEvaluations(c)).reviews(c.id, q),
+  ),
+  operation(
+    "POST",
+    "/answer-evaluations/{id}/seal",
+    "封存全部已审核结果，不代表发布通过",
+    ae.sealInput,
+    ae.runResult,
+    async (c, data) =>
+      (await answerEvaluations(c)).seal(c.id, data, c.requestId),
+  ),
+
   operation(
     "POST",
     "/answer-runs",
@@ -827,6 +898,7 @@ export interface AdminDependencies {
   getVectors?: () => Promise<VectorService>;
   getEvaluations?: () => Promise<EvaluationService>;
   getAnswers?: () => Promise<AnswerService>;
+  getAnswerEvaluations?: () => Promise<AnswerEvaluationService>;
   signal?: AbortSignal;
   adminToken: () => string | undefined;
   reportError?: (error: unknown, requestId: string) => void;
@@ -904,6 +976,7 @@ export async function handleAdmin(
           getVectors: deps.getVectors,
           getEvaluations: deps.getEvaluations,
           getAnswers: deps.getAnswers,
+          getAnswerEvaluations: deps.getAnswerEvaluations,
           signal: request.signal,
         },
         raw,

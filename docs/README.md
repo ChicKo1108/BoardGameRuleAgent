@@ -11,6 +11,7 @@
 | [RAG 设计](04-rag-and-answering.md) | 检索流程、Agent 工具、证据和答案 |
 | [评测与实验](05-evaluation.md) | 数据集格式、实验矩阵、指标和门禁 |
 | [API 与实施计划](06-api-and-roadmap.md) | API、后台页面、开发里程碑 |
+| [回答评测与人工复核](14-answer-evaluations.md) | 原始问题执行、逐题复核、不可变报告与故障恢复 |
 | [Pi 问答验收](13-pi-answering.md) | 强制检索、工具预算、引用校验、持久化与模型接入 |
 | [检索评测运行手册](12-retrieval-evaluations.md) | 固定数据集、异步评测、完整证据指标、报告与恢复 |
 | [向量与混合检索](11-hybrid-retrieval.md) | 模型适配、持久构建、pgvector、RRF、TokenHub 配置 |

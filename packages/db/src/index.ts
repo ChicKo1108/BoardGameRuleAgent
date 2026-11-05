@@ -8,6 +8,7 @@ import { KnowledgeReleases1793836803000 } from "./migrations/1793836803000-Knowl
 import { VectorRetrieval1793836804000 } from "./migrations/1793836804000-VectorRetrieval.ts";
 import { RetrievalEvaluations1793836805000 } from "./migrations/1793836805000-RetrievalEvaluations.ts";
 import { AnswerRuns1793836806000 } from "./migrations/1793836806000-AnswerRuns.ts";
+import { AnswerEvaluations1793836807000 } from "./migrations/1793836807000-AnswerEvaluations.ts";
 export * from "./entities.ts";
 export * from "./knowledge-repository.ts";
 
@@ -31,6 +32,7 @@ export function createDataSource(databaseUrl: string): DataSource {
       VectorRetrieval1793836804000,
       RetrievalEvaluations1793836805000,
       AnswerRuns1793836806000,
+      AnswerEvaluations1793836807000,
     ],
     migrationsTransactionMode: "all",
     uuidExtension: "pgcrypto",
