@@ -60,3 +60,5 @@ export {sessionView} from "./sessions.ts";
 export * as conversationSchemas from "./conversations.ts";
 
 export * as curationSchemas from "./curation.ts";
+
+export * as draftDiagnosticSchemas from "./draft-diagnostics.ts";

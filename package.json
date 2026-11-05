@@ -25,7 +25,8 @@
     "queue:setup": "tsx apps/worker/src/index.ts --setup",
     "worker:start": "tsx apps/worker/src/index.ts",
     "worker:once": "tsx apps/worker/src/index.ts --once",
-    "curation": "tsx scripts/curation.ts"
+    "curation": "tsx scripts/curation.ts",
+    "diagnose:draft": "tsx scripts/draft-diagnostics.ts"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
