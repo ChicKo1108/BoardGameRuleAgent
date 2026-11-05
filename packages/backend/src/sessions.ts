@@ -17,6 +17,7 @@ export const sessionOptions = z
     origin: z.string().url(),
     ttlSeconds: z.number().int().min(900).max(2592000).default(2592000),
     guestDailyQuestions: z.number().int().min(0).max(1000).default(0),
+    memberDailyQuestions: z.number().int().min(0).max(10000).default(0),
     globalDailyQuestions: z.number().int().min(0).max(1000000).default(0),
     mintsPerMinute: z.number().int().min(1).max(10000).default(60),
   })
@@ -83,11 +84,16 @@ export class SessionService {
     if (!token || !/^[-_a-zA-Z0-9]{43}$/.test(token))
       throw new SessionError(401, "SESSION_REQUIRED");
     const [row] = await tx.query(
-      `SELECT id,principal_id AS "principalId",expires_at AS "expiresAt" FROM browser_sessions WHERE token_hash=$1 AND revoked_at IS NULL AND expires_at>clock_timestamp()${lock ? " FOR UPDATE" : ""}`,
+      `SELECT s.id,s.principal_id AS "principalId",s.expires_at AS "expiresAt",p.kind FROM browser_sessions s JOIN public_principals p ON p.id=s.principal_id WHERE token_hash=$1 AND revoked_at IS NULL AND s.expires_at>clock_timestamp()${lock ? " FOR UPDATE OF s" : ""}`,
       [hash(token)],
     );
     if (!row) throw new SessionError(401, "SESSION_INVALID");
-    return row as { id: string; principalId: string; expiresAt: Date };
+    return row as {
+      id: string;
+      principalId: string;
+      expiresAt: Date;
+      kind: "guest" | "member";
+    };
   }
   async initialize(token: string | null) {
     if (token) return { session: await this.current(token), cookie: null };
@@ -117,17 +123,25 @@ export class SessionService {
     tx: EntityManager = this.db.manager,
   ) {
     const [row] = await tx.query(
-      `SELECT timezone('Asia/Shanghai',clock_timestamp())::date::text AS day,count(*) FILTER(WHERE principal_id=$1)::int AS used,count(*)::int AS global_used FROM question_allowances WHERE quota_day=timezone('Asia/Shanghai',clock_timestamp())::date AND state<>'released' AND (state<>'reserved' OR expires_at>clock_timestamp())`,
+      `SELECT timezone('Asia/Shanghai',clock_timestamp())::date::text AS day,count(*) FILTER(WHERE principal_id IN (SELECT principal_scope($1)))::int AS used,count(*)::int AS global_used FROM question_allowances WHERE quota_day=timezone('Asia/Shanghai',clock_timestamp())::date AND state<>'released' AND (state<>'reserved' OR expires_at>clock_timestamp())`,
       [principalId],
     );
+    const [{ kind }] = await tx.query(
+      "SELECT kind FROM public_principals WHERE id=$1",
+      [principalId],
+    );
+    const limit =
+      kind === "member"
+        ? this.options.memberDailyQuestions
+        : this.options.guestDailyQuestions;
     return {
       day: row.day,
-      limit: this.options.guestDailyQuestions,
+      limit,
       used: row.used,
       remaining: Math.max(
         0,
         Math.min(
-          this.options.guestDailyQuestions - row.used,
+          limit - row.used,
           this.options.globalDailyQuestions - row.global_used,
         ),
       ),
@@ -139,8 +153,12 @@ export class SessionService {
     };
   }
   private async describe(actor: { principalId: string; expiresAt: Date }) {
+    const [{ kind }] = await this.db.query(
+      "SELECT kind FROM public_principals WHERE id=$1",
+      [actor.principalId],
+    );
     return sessionView.parse({
-      kind: "guest" as const,
+      kind,
       expiresAt: actor.expiresAt.toISOString(),
       quota: await this.usage(actor.principalId),
     });
@@ -167,7 +185,14 @@ export class SessionService {
         [input.id],
       );
       if (old) {
-        if (old.principal_id !== actor.principalId)
+        if (
+          !(
+            await tx.query("SELECT 1 FROM principal_scope($1) id WHERE id=$2", [
+              actor.principalId,
+              old.principal_id,
+            ])
+          ).length
+        )
           throw new SessionError(404, "ALLOWANCE_NOT_FOUND");
         if (old.request_hash !== input.requestHash)
           throw new SessionError(409, "ALLOWANCE_IDEMPOTENCY_CONFLICT");
@@ -242,6 +267,7 @@ export function sessionConfigFromEnvironment() {
   return {
     origin: process.env.PUBLIC_APP_ORIGIN,
     guestDailyQuestions: v("PUBLIC_GUEST_DAILY_QUESTIONS", 0),
+    memberDailyQuestions: v("PUBLIC_MEMBER_DAILY_QUESTIONS", 0),
     globalDailyQuestions: v("PUBLIC_GLOBAL_DAILY_QUESTIONS", 0),
     mintsPerMinute: v("PUBLIC_SESSION_MINTS_PER_MINUTE", 60),
     ttlSeconds: v("PUBLIC_SESSION_TTL_SECONDS", 2592000),
