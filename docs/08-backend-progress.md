@@ -44,3 +44,9 @@ OpenAPI 3.1 从实际路由和 schema 生成，GET /api/admin/openapi（需管�
 实现 Embedding 协议适配器、持久批量构建与检查点恢复、真实 pgvector 余弦查询、RRF 融合、配置/向量空间隔离、不可变运行记录及管理员 API/OpenAPI。向量服务未配置时不伪造结果。测试环境切换为原生 PostgreSQL 18 或 CI pgvector 容器，独立数据库隔离。
 
 验证：38 项测试、类型检查、Worker 检查、生产构建、真实 HTTP 贯穿链路。模型输出来自本地合成服务，尚未做真实供应商或真实桌游质量验收。运行与 TokenHub 候选配置见 [向量与混合检索](11-hybrid-retrieval.md)。
+
+## PR：retrieval-evaluations（依赖 hybrid-retrieval）
+
+实现不可变评测数据集与快照证据映射、显式开发/保留集、关键词/向量/混合检索异步评测、逐题结果与汇总报告。完整证据组合判分，搜索与上下文补全分开统计，失败保留在分母；不对未标注证据的题目或生成答案宣称通过。模型/索引/评分器身份固定，幂等入队、检查点恢复与旧尝试隔离，管理员 API 和 OpenAPI 已接通。
+
+验证：47 项测试、类型检查、Worker 模块检查、生产构建、真实 Next.js HTTP/pgvector/pg-boss Worker 贯穿评测链路。用本地合成模型验证工程，尚未形成真实 Azul 标准集、供应商对比或答案质量验收；没有自动发布。运行与指标口径见 [检索评测手册](12-retrieval-evaluations.md)。

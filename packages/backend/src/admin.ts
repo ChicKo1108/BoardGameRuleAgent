@@ -4,6 +4,7 @@ import {
   adminSchemas as s,
   knowledgeSchemas as k,
   vectorSchemas as v,
+  evaluationSchemas as e,
 } from "@boardgame/contracts";
 import {
   KnowledgeRepository,
@@ -25,6 +26,7 @@ import {
 } from "@boardgame/retrieval";
 
 import type { VectorService } from "./vectors.ts";
+import type { EvaluationService } from "./evaluations.ts";
 class HttpError extends Error {
   constructor(
     readonly status: number,
@@ -39,6 +41,7 @@ type Context = {
   requestId: string;
   getIngestion?: () => Promise<IngestionService>;
   getVectors?: () => Promise<VectorService>;
+  getEvaluations?: () => Promise<EvaluationService>;
   signal?: AbortSignal;
 };
 async function ingestion(c: Pick<Context, "getIngestion">) {
@@ -48,6 +51,10 @@ async function ingestion(c: Pick<Context, "getIngestion">) {
 async function vectors(c: Pick<Context, "getVectors">) {
   if (!c.getVectors) throw new HttpError(503, "VECTORS_NOT_CONFIGURED");
   return c.getVectors();
+}
+async function evaluations(c: Pick<Context, "getEvaluations">) {
+  if (!c.getEvaluations) throw new HttpError(503, "EVALUATIONS_NOT_CONFIGURED");
+  return c.getEvaluations();
 }
 interface Operation {
   method: string;
@@ -101,6 +108,59 @@ async function exists(
   return record;
 }
 export const operations: Operation[] = [
+  operation(
+    "POST",
+    "/releases/{id}/evaluation-datasets",
+    "创建不可变评测集（证据须已审核）",
+    e.datasetInput,
+    e.datasetResult,
+    async (c, data) =>
+      (await evaluations(c)).createDataset(c.id, data, c.requestId),
+    201,
+  ),
+  operation(
+    "GET",
+    "/evaluation-datasets/{id}",
+    "读取固定版本评测集",
+    s.empty,
+    e.datasetResult,
+    async (c) => (await evaluations(c)).dataset(c.id),
+  ),
+  operation(
+    "POST",
+    "/evaluation-datasets/{id}/runs",
+    "异步执行指定开发集或保留集",
+    e.runInput,
+    z.object({ runId: s.uuid }),
+    async (c, data) => (await evaluations(c)).enqueue(c.id, data, c.requestId),
+    202,
+  ),
+  operation(
+    "GET",
+    "/evaluation-runs/{id}",
+    "读取进度、配置和评测报告",
+    s.empty,
+    e.runResult,
+    async (c) => (await evaluations(c)).get(c.id),
+  ),
+  operation(
+    "GET",
+    "/evaluation-runs/{id}/results",
+    "分页查看逐题证据和评分",
+    s.pageQuery,
+    s.listResult(e.caseResult),
+    async (c, q) => (await evaluations(c)).results(c.id, q),
+  ),
+  operation(
+    "POST",
+    "/evaluation-runs/{id}/retry",
+    "恢复失败的评测任务（保留已完成题目）",
+    s.empty,
+    z.object({ runId: s.uuid }),
+    async (c) => (await evaluations(c)).retry(c.id, c.requestId),
+    202,
+  ),
+
   operation(
     "POST",
     "/index-builds/{id}/vectors",
@@ -733,6 +793,7 @@ export interface AdminDependencies {
   getDb: () => Promise<DataSource>;
   getIngestion?: () => Promise<IngestionService>;
   getVectors?: () => Promise<VectorService>;
+  getEvaluations?: () => Promise<EvaluationService>;
   signal?: AbortSignal;
   adminToken: () => string | undefined;
   reportError?: (error: unknown, requestId: string) => void;
@@ -808,6 +869,7 @@ export async function handleAdmin(
           requestId,
           getIngestion: deps.getIngestion,
           getVectors: deps.getVectors,
+          getEvaluations: deps.getEvaluations,
           signal: request.signal,
         },
         raw,

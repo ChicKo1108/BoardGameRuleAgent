@@ -5,6 +5,7 @@ const config: NextConfig = {
     "@boardgame/db",
     "@boardgame/backend",
     "@boardgame/retrieval",
+    "@boardgame/evaluations",
   ],
   serverExternalPackages: ["typeorm", "pg", "pg-boss"],
 };

@@ -2,6 +2,7 @@ import { handleAdmin } from "@boardgame/backend";
 import { getDatabase } from "../../../../server/database";
 import { getIngestion } from "../../../../server/ingestion";
 import { getVectors } from "../../../../server/vectors";
+import { getEvaluations } from "../../../../server/evaluations";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 async function handler(request: Request) {
@@ -9,6 +10,7 @@ async function handler(request: Request) {
     getDb: getDatabase,
     getIngestion,
     getVectors,
+    getEvaluations,
     adminToken: () => process.env.ADMIN_API_TOKEN,
     reportError: (_error, requestId) =>
       console.error(JSON.stringify({ event: "admin_api_failure", requestId })),

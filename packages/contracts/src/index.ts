@@ -48,3 +48,6 @@ export type { KnowledgeManifest } from "./knowledge.ts";
 
 export * as vectorSchemas from "./vectors.ts";
 export type { EmbeddingProfile } from "./vectors.ts";
+
+export * as evaluationSchemas from "./evaluations.ts";
+export type { EvalCase, EvalConfig, CaseResult } from "./evaluations.ts";

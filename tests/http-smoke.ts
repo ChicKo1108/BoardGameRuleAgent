@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { createServer } from "node:net";
 import { once } from "node:events";
 import { resolve, join } from "node:path";
@@ -14,6 +14,7 @@ import {
   PythonPdfParser,
   sha256,
   VectorService,
+  EvaluationService,
 } from "../packages/backend/src/index.ts";
 import { testDatabase } from "./helpers/database.js";
 
@@ -278,6 +279,73 @@ try {
     const trace = JSON.parse(await traced.text()).data;
     assert.ok(trace.requestId);
     assert.equal(trace.status, "succeeded");
+    const dataset = await post(`/releases/${release.id}/evaluation-datasets`, {
+      name: "HTTP synthetic retrieval evaluation",
+      revision: "1",
+      cases: [
+        {
+          id: "synthetic",
+          category: "recall",
+          split: "development",
+          severity: "critical",
+          messages: [{ role: "user", content: "Synthetic tile" }],
+          query: "Synthetic tile",
+          expectedBehavior: "answer",
+          requiredClaims: [],
+          forbiddenClaims: [],
+          acceptableEvidenceSets: [[rule.id]],
+          reviewNote: "Synthetic fixture; not a real game answer",
+        },
+      ],
+    });
+    const evaluation = await post(
+      `/evaluation-datasets/${dataset.id}/runs`,
+      {
+        idempotencyKey: randomUUID(),
+        config: {
+          indexBuildId: index.id,
+          vectorIndexId: vectorIndex.vectorIndexId,
+          mode: "hybrid",
+          split: "development",
+          context: { maxRules: 20, maxChars: 32000 },
+        },
+      },
+      202,
+    );
+    await new EvaluationService(
+      fixture.db,
+      queue,
+      new VectorService(fixture.db, queue, embeddingHttp.provider),
+    ).start();
+    let evaluationReady = false;
+    for (let attempt = 0; attempt < 80; attempt++) {
+      const response = await fetch(
+        `${base}/api/admin/evaluation-runs/${evaluation.runId}`,
+        { headers },
+      );
+      assert.equal(response.status, 200);
+      const run = JSON.parse(await response.text()).data;
+      if (run.state === "completed") {
+        assert.equal(run.report.context.completeRate, 1);
+        assert.equal(run.report.answerQualityEvaluated, false);
+        evaluationReady = true;
+        break;
+      }
+      if (["failed", "completed_with_errors"].includes(run.state))
+        throw new Error(JSON.stringify(run));
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    assert.ok(evaluationReady, "Evaluation worker did not finish");
+    const evaluated = await fetch(
+      `${base}/api/admin/evaluation-runs/${evaluation.runId}/results?limit=1`,
+      { headers },
+    );
+    assert.equal(evaluated.status, 200);
+    const outcome = JSON.parse(await evaluated.text()).data;
+    assert.equal(outcome.items[0].context.evidence[0].ruleId, rule.id);
+    console.info(
+      "PASS production HTTP: immutable evaluation dataset, async hybrid evaluation, complete evidence metrics, paginated results",
+    );
     console.info(
       "PASS production HTTP: vector worker, embedding HTTP adapter, pgvector cosine search, RRF, persisted retrieval trace",
     );
