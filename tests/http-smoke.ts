@@ -183,8 +183,56 @@ try {
     )
   )[0].status;
   assert.equal(status, "awaiting_review");
+  // Only generated fixtures are automatically approved; private rulebooks stay awaiting_review.
+  if (!process.env.INGESTION_TEST_PDF) {
+    const response = await fetch(
+      `${base}/api/admin/revisions/${revision.id}/blocks`,
+      { headers },
+    );
+    assert.equal(response.status, 200);
+    const block = JSON.parse(await response.text()).data.items[0];
+    const rule = await post(`/revisions/${revision.id}/rules`, {
+      kind: "rule",
+      reviewedText: block.rawText,
+      reviewStatus: "approved",
+      sourceBlockIds: [block.id],
+    });
+    await post(
+      `/revisions/${revision.id}/parser-review`,
+      {
+        note: "Generated fixture manually specified by the test; verified source text and order.",
+      },
+      200,
+    );
+    await post(`/revisions/${revision.id}/approve`, {}, 200);
+    const release = await post(`/rulesets/${ruleset.id}/releases`, {
+      name: "HTTP synthetic baseline",
+      revisionIds: [revision.id],
+    });
+    const index = await post(`/releases/${release.id}/indexes`, {});
+    const search = await post(
+      `/index-builds/${index.id}/search`,
+      { query: "Synthetic tile" },
+      200,
+    );
+    assert.ok(
+      search.hits.some((hit: { ruleId: string }) => hit.ruleId === rule.id),
+    );
+    const context = await post(
+      `/index-builds/${index.id}/context`,
+      { chunkIds: [search.hits[0].chunkId] },
+      200,
+    );
+    assert.equal(context.releaseId, release.id);
+    assert.equal(context.evidence[0].sources[0].blockId, block.id);
+    assert.equal(context.evidence[0].sources[0].pdfPageIndex, 0);
+    console.info(
+      "PASS production HTTP: reviewed snapshot, versioned index, lexical search, exact evidence source",
+    );
+  }
+
   console.info(
-    "PASS production HTTP: auth, PostgreSQL, OpenAPI, PDF upload/download, durable job, live worker, provenance, awaiting review",
+    "PASS production HTTP: auth, PostgreSQL, OpenAPI, PDF upload/download, durable job, live worker, provenance, initial awaiting-review state",
   );
   console.info(
     JSON.stringify({
@@ -199,7 +247,7 @@ try {
         (b: { kind: string }) => b.kind === "figure",
       ).length,
       warnings: parsed.warnings,
-      status,
+      statusAfterParse: status,
     }),
   );
 } finally {
