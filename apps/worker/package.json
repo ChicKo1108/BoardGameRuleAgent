@@ -6,5 +6,10 @@
   "scripts": {
     "check": "tsx src/index.ts --check",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@boardgame/backend": "0.1.0",
+    "@boardgame/db": "0.1.0",
+    "dotenv": "^17.0.0"
   }
 }

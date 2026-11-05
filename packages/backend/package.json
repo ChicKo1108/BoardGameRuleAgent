@@ -12,6 +12,7 @@
   "dependencies": {
     "@boardgame/contracts": "0.1.0",
     "@boardgame/db": "0.1.0",
+    "pg-boss": "^12.38.0",
     "typeorm": "1.1.2",
     "zod": "^4.0.0"
   }

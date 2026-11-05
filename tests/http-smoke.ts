@@ -3,46 +3,212 @@ import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { createServer } from "node:net";
 import { once } from "node:events";
-import { resolve } from "node:path";
+import { resolve, join } from "node:path";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { syntheticPdf } from "./helpers/pdf.js";
+import {
+  connectQueue,
+  IngestionService,
+  LocalBlobStore,
+  PythonPdfParser,
+  sha256,
+} from "../packages/backend/src/index.ts";
 import { testDatabase } from "./helpers/database.js";
 
 const fixture = await testDatabase();
 await fixture.db.runMigrations();
+const queue = await connectQueue(
+  (fixture.db.options as { url: string }).url,
+  true,
+);
+const storage = await mkdtemp(join(tmpdir(), "boardgame-http-store-"));
+const script = resolve("services/document-parser/parse.py");
+const runner = new IngestionService(
+  fixture.db,
+  queue,
+  new LocalBlobStore(storage),
+  new PythonPdfParser(process.env.PARSER_PYTHON ?? "python3", script),
+);
 const socket = createServer();
-await new Promise<void>(r => socket.listen(0, "127.0.0.1", r));
-const port = (socket.address() as {port:number}).port;
-await new Promise<void>(r => socket.close(() => r()));
+await new Promise<void>((r) => socket.listen(0, "127.0.0.1", r));
+const port = (socket.address() as { port: number }).port;
+await new Promise<void>((r) => socket.close(() => r()));
 const token = randomBytes(32).toString("hex");
-const child = spawn(process.execPath, [resolve("node_modules/next/dist/bin/next"), "start", "--hostname", "127.0.0.1", "--port", String(port)], {
-  cwd: resolve("apps/web"), stdio: ["ignore", "pipe", "pipe"],
-  env: {...process.env, ADMIN_API_TOKEN: token, DATABASE_URL: (fixture.db.options as {url:string}).url, NEXT_TELEMETRY_DISABLED:"1"},
+const child = spawn(
+  process.execPath,
+  [
+    resolve("node_modules/next/dist/bin/next"),
+    "start",
+    "--hostname",
+    "127.0.0.1",
+    "--port",
+    String(port),
+  ],
+  {
+    cwd: resolve("apps/web"),
+    stdio: ["ignore", "pipe", "pipe"],
+    env: {
+      ...process.env,
+      ADMIN_API_TOKEN: token,
+      DATABASE_URL: (fixture.db.options as { url: string }).url,
+      NEXT_TELEMETRY_DISABLED: "1",
+      STORAGE_ROOT: storage,
+      PARSER_SCRIPT: script,
+    },
+  },
+);
+let log = "";
+child.stdout.on("data", (v) => {
+  log += v;
 });
-let log="";
-child.stdout.on("data", v => { log += v; });
-child.stderr.on("data", v => { log += v; });
+child.stderr.on("data", (v) => {
+  log += v;
+});
 const base = `http://127.0.0.1:${port}`;
 try {
-  let ready=false;
-  for(let i=0;i<80;i++) {
-    if(child.exitCode!==null)throw new Error(`Web process failed: ${log}`);
-    try { if((await fetch(`${base}/api/health`)).ok){ready=true;break;} } catch {}
-    await new Promise(r=>setTimeout(r,250));
+  let ready = false;
+  for (let i = 0; i < 80; i++) {
+    if (child.exitCode !== null) throw new Error(`Web process failed: ${log}`);
+    try {
+      if ((await fetch(`${base}/api/health`)).ok) {
+        ready = true;
+        break;
+      }
+    } catch {}
+    await new Promise((r) => setTimeout(r, 250));
   }
-  assert.ok(ready,"Web process did not start");
-  assert.equal((await fetch(`${base}/api/admin/games`)).status,401);
-  const headers={authorization:`Bearer ${token}`,"content-type":"application/json"};
-  const created=await fetch(`${base}/api/admin/games`,{method:"POST",headers,body:JSON.stringify({slug:"http-smoke",name:"合成 HTTP 验证"})});
-  assert.equal(created.status,201,await created.clone().text());
-  const result=JSON.parse(await created.text());
+  assert.ok(ready, "Web process did not start");
+  assert.equal((await fetch(`${base}/api/admin/games`)).status, 401);
+  const headers = {
+    authorization: `Bearer ${token}`,
+    "content-type": "application/json",
+  };
+  const created = await fetch(`${base}/api/admin/games`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ slug: "http-smoke", name: "合成 HTTP 验证" }),
+  });
+  assert.equal(created.status, 201, await created.clone().text());
+  const result = JSON.parse(await created.text());
   assert.ok(result.data.id);
-  const listed=await fetch(`${base}/api/admin/games`,{headers});
-  assert.equal(listed.status,200);
-  assert.equal(JSON.parse(await listed.text()).data.total,1);
-  const spec=await fetch(`${base}/api/admin/openapi`,{headers});
-  assert.equal(spec.status,200);
-  assert.equal(JSON.parse(await spec.text()).openapi,"3.1.0");
-  console.info("PASS production HTTP: auth, PostgreSQL create/list, OpenAPI");
+  const listed = await fetch(`${base}/api/admin/games`, { headers });
+  assert.equal(listed.status, 200);
+  assert.equal(JSON.parse(await listed.text()).data.total, 1);
+  const spec = await fetch(`${base}/api/admin/openapi`, { headers });
+  assert.equal(spec.status, 200);
+  assert.equal(JSON.parse(await spec.text()).openapi, "3.1.0");
+  async function post(path: string, body: unknown, status = 201) {
+    const response = await fetch(`${base}/api/admin${path}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+    assert.equal(response.status, status, await response.clone().text());
+    return JSON.parse(await response.text()).data;
+  }
+  const ruleset = await post("/rulesets", {
+    gameId: result.data.id,
+    name: "Parser smoke",
+    language: "zh-CN",
+    scope: "local validation only",
+  });
+  const bytes = process.env.INGESTION_TEST_PDF
+    ? await readFile(process.env.INGESTION_TEST_PDF)
+    : syntheticPdf();
+  const doc = await post("/documents", {
+    rulesetId: ruleset.id,
+    title: "Private parser smoke",
+    sourceType: "rulebook",
+    sha256: sha256(bytes),
+  });
+  const uploaded = await fetch(`${base}/api/admin/documents/${doc.id}/file`, {
+    method: "PUT",
+    headers: {
+      authorization: `Bearer ${token}`,
+      "content-type": "application/pdf",
+    },
+    body: new Uint8Array(bytes),
+  });
+  assert.equal(uploaded.status, 200, await uploaded.clone().text());
+  const downloaded = await fetch(`${base}/api/admin/documents/${doc.id}/file`, {
+    headers,
+  });
+  assert.equal(downloaded.status, 200);
+  assert.equal(
+    sha256(new Uint8Array(await downloaded.arrayBuffer())),
+    sha256(bytes),
+  );
+  const parserConfig = process.env.INGESTION_TEST_CONFIG
+    ? JSON.parse(await readFile(process.env.INGESTION_TEST_CONFIG, "utf8"))
+    : {};
+  const revision = await post(`/documents/${doc.id}/revisions`, {
+    parserConfig,
+  });
+  const job = await post(`/revisions/${revision.id}/parse`, {}, 202);
+  assert.equal(
+    (await post(`/revisions/${revision.id}/parse`, {}, 202)).jobId,
+    job.jobId,
+  );
+  await runner.start();
+  let finished = false;
+  for (let i = 0; i < 120; i++) {
+    const response = await fetch(`${base}/api/admin/jobs/${job.jobId}`, {
+      headers,
+    });
+    assert.equal(response.status, 200);
+    const state = JSON.parse(await response.text()).data;
+    if (state.state === "failed")
+      throw new Error(`Parse job failed: ${state.error_code}`);
+    if (state.state === "succeeded") {
+      finished = true;
+      break;
+    }
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  assert.ok(finished, "Parse job did not finish");
+  const parsedResponse = await fetch(
+    `${base}/api/admin/revisions/${revision.id}/parse-result`,
+    { headers },
+  );
+  assert.equal(parsedResponse.status, 200);
+  const parsed = JSON.parse(await parsedResponse.text()).data;
+  assert.ok(
+    parsed.blocks.some((b: { rawText: string }) => b.rawText.length > 20),
+  );
+  const status = (
+    await fixture.db.query(
+      "SELECT status FROM document_revisions WHERE id=$1",
+      [revision.id],
+    )
+  )[0].status;
+  assert.equal(status, "awaiting_review");
+  console.info(
+    "PASS production HTTP: auth, PostgreSQL, OpenAPI, PDF upload/download, durable job, live worker, provenance, awaiting review",
+  );
+  console.info(
+    JSON.stringify({
+      privateSource: Boolean(process.env.INGESTION_TEST_PDF),
+      sha256: sha256(bytes),
+      pages: parsed.pages.length,
+      blocks: parsed.blocks.length,
+      textBlocks: parsed.blocks.filter(
+        (b: { kind: string }) => b.kind === "text",
+      ).length,
+      figureBlocks: parsed.blocks.filter(
+        (b: { kind: string }) => b.kind === "figure",
+      ).length,
+      warnings: parsed.warnings,
+      status,
+    }),
+  );
 } finally {
-  if(child.exitCode===null){const exited=once(child,"exit");child.kill("SIGTERM");await exited;}
+  if (child.exitCode === null) {
+    const exited = once(child, "exit");
+    child.kill("SIGTERM");
+    await exited;
+  }
+  await queue.stop();
   await fixture.close();
+  await rm(storage, { recursive: true, force: true });
 }

@@ -24,3 +24,11 @@ OpenAPI 3.1 从实际路由和 schema 生成，GET /api/admin/openapi（需管�
 运行 Next.js 前在 apps/web/.env.local 配置 DATABASE_URL 和 ADMIN_API_TOKEN，并从根 .env 执行迁移。原始 PDF 和密钥不提交。
 
 验证：13 项真实 PostgreSQL/接口测试、类型检查、生产构建通过。npm run test:http 在构建后启动临时 Next.js 与数据库，验证真实 HTTP 鉴权、创建/查询和 OpenAPI；已加入 CI。
+
+## PR：pdf-ingestion（依赖 knowledge-admin-api）
+
+实现私有文件存储、PDF 哈希验证、事务化任务入队、pg-boss Worker、原生 PDF 文本解析、页码/坐标溯源、审核警告、失败状态和显式重试。解析原始产物不可覆盖，已开始新尝试后旧尝试无法覆盖结果。新增 TypeORM 迁移和 OpenAPI 接口。
+
+解析器当前是 pdfplumber 可复现基线；中文多栏与图例需要人工核对，Docling 对比仍待开展。文件存储当前要求 Web/Worker 使用相同持久卷，尚未实现 S3 适配器。详见 [运行手册](09-pdf-ingestion.md)。
+
+验证：21 项测试、类型检查、Worker 模块检查、生产构建和生产 HTTP 链路通过。2026-11-05 使用用户提供的中文 PDF 在临时数据库验证，6 页、192 个来源块（7 个文本区域、185 个底层图片对象），13 条审核警告，最终状态 awaiting_review；未自动批准或发布。图片对象数不等于语义图例数。原文未进入仓库，测试结束清理私有副本。

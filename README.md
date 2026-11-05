@@ -7,14 +7,16 @@
 已初始化 npm workspaces、Next.js 应用、存活检查 API、共享契约、TypeORM 数据源工厂、Pi 依赖和 Worker 入口。
 已实现知识存储表、可回退迁移和仓储约束，详见 [后端进度](docs/08-backend-progress.md)。
 已实现带鉴权的知识管理 API、结构化来源导入、审核和 OpenAPI 文档。
-尚未实现 PDF 上传/自动解析、检索、聊天、队列、公众登录、Swagger UI 和 Sentry 集成。
-当前首页是工程状态页，不是产品设计稿。没有导入任何真实规则书或模型密钥。
+已实现私有 PDF 上传、pg-boss 持久队列、Python 解析 Worker 与人工审核门禁，见 [入库运行手册](docs/09-pdf-ingestion.md)。
+尚未实现检索、聊天、公众登录、Swagger UI 和 Sentry 集成。
+当前首页是工程状态页，不是产品设计稿。真实规则书仅用于本地隔离验证，原文和模型密钥均不进入仓库。
 
 ## 启动
 
 ```sh
 nvm use
 npm ci
+# 解析测试还需安装 services/document-parser/requirements.txt
 npm run dev
 ```
 
@@ -44,7 +46,7 @@ Next.js 环境变量放 `apps/web/.env.local`；Worker/迁移命令后续显式�
 - `packages/agent`：Pi 集成、工具、提示词和答案校验。
 - `packages/retrieval`：检索算法与适配器。
 - `packages/evaluations`：测试集、评测和实验。
-- `services/document-parser`：文档解析服务预留目录。
+- `services/document-parser`：Python PDF 解析适配器与依赖。
 - `docs`：产品范围、架构、知识库、检索与开发计划。
 
 从 [文档索引](docs/README.md) 开始阅读。设计文档中的目标不代表已实现功能。

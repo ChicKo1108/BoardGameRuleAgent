@@ -21,7 +21,10 @@
     "db:revert": "tsx packages/db/src/cli.ts down",
     "db:status": "tsx packages/db/src/cli.ts status",
     "typecheck:tests": "tsc -p tests/tsconfig.json",
-    "test:http": "tsx tests/http-smoke.ts"
+    "test:http": "tsx tests/http-smoke.ts",
+    "queue:setup": "tsx apps/worker/src/index.ts --setup",
+    "worker:start": "tsx apps/worker/src/index.ts",
+    "worker:once": "tsx apps/worker/src/index.ts --once"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
