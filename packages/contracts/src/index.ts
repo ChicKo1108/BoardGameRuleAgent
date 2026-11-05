@@ -1,5 +1,8 @@
 // Application-owned contracts; no framework or database dependencies.
-export type AnswerStatus = "answered" | "needs_context" | "insufficient_evidence";
+export type AnswerStatus =
+  | "answered"
+  | "needs_context"
+  | "insufficient_evidence";
 export interface SourceReference {
   blockId: string;
   pdfPageIndex: number;
@@ -11,7 +14,10 @@ export interface RetrievalContext {
   indexBuildId: string;
   requestId: string;
 }
-export interface SearchRulesInput { query: string; topic?: string; }
+export interface SearchRulesInput {
+  query: string;
+  topic?: string;
+}
 export interface EvidenceBundle {
   retrievalRunId: string;
   releaseId: string;
@@ -36,3 +42,6 @@ export interface RuleAnswer {
 }
 
 export * as adminSchemas from "./admin.ts";
+
+export * as knowledgeSchemas from "./knowledge.ts";
+export type { KnowledgeManifest } from "./knowledge.ts";

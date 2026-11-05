@@ -1,6 +1,6 @@
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
-import { adminSchemas as s } from "@boardgame/contracts";
+import { adminSchemas as s, knowledgeSchemas as k } from "@boardgame/contracts";
 import {
   KnowledgeRepository,
   GameEntity,
@@ -14,6 +14,7 @@ import type { DataSource, EntityManager } from "typeorm";
 
 import { IngestionError, type IngestionService } from "./ingestion.ts";
 import { parserResultSchema } from "./parser.ts";
+import { KnowledgeIndexService, RetrievalError } from "@boardgame/retrieval";
 
 class HttpError extends Error {
   constructor(
@@ -85,6 +86,65 @@ async function exists(
   return record;
 }
 export const operations: Operation[] = [
+  operation(
+    "POST",
+    "/rulesets/{id}/releases",
+    "冻结已审核资料为知识快照（不代表上线发布）",
+    k.createRelease,
+    k.releaseResult,
+    (c, data) =>
+      new KnowledgeIndexService(c.db).createRelease(c.id, data, c.requestId),
+    201,
+  ),
+  operation(
+    "GET",
+    "/releases/{id}",
+    "读取知识版本信息",
+    s.empty,
+    k.releaseResult,
+    (c) => new KnowledgeIndexService(c.db).release(c.id),
+  ),
+  operation(
+    "GET",
+    "/releases/{id}/manifest",
+    "读取不可变规则与原始来源清单",
+    s.empty,
+    k.manifestSchema,
+    (c) => new KnowledgeIndexService(c.db).manifest(c.id),
+  ),
+  operation(
+    "POST",
+    "/releases/{id}/indexes",
+    "构建完整规则的中文关键词索引（幂等）",
+    s.empty,
+    k.indexBuildResult,
+    (c) => new KnowledgeIndexService(c.db).build(c.id, c.requestId),
+    201,
+  ),
+  operation(
+    "GET",
+    "/index-builds/{id}",
+    "读取索引配置版本",
+    s.empty,
+    k.indexBuildResult,
+    (c) => new KnowledgeIndexService(c.db).index(c.id),
+  ),
+  operation(
+    "POST",
+    "/index-builds/{id}/search",
+    "版本内关键词检索基线（管理员实验）",
+    k.searchInput,
+    k.searchResult,
+    (c, data) => new KnowledgeIndexService(c.db).search(c.id, data),
+  ),
+  operation(
+    "POST",
+    "/index-builds/{id}/context",
+    "读取同版本证据并补齐关联规则及缺口",
+    k.contextInput,
+    k.contextResult,
+    (c, data) => new KnowledgeIndexService(c.db).context(c.id, data),
+  ),
   operation(
     "POST",
     "/revisions/{id}/parse",
@@ -696,7 +756,11 @@ export async function handleAdmin(
     }
     throw new HttpError(404, "NOT_FOUND");
   } catch (error) {
-    if (error instanceof HttpError || error instanceof IngestionError)
+    if (
+      error instanceof HttpError ||
+      error instanceof IngestionError ||
+      error instanceof RetrievalError
+    )
       return respond({ error: { code: error.code }, requestId }, error.status);
     if (error instanceof z.ZodError)
       return respond(
