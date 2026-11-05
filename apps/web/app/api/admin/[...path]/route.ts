@@ -5,6 +5,7 @@ import { getVectors } from "../../../../server/vectors";
 import { getEvaluations } from "../../../../server/evaluations";
 import { getAnswers } from "../../../../server/answers";
 import { getAnswerEvaluations } from "../../../../server/answer-evaluations";
+import { getPublications } from "../../../../server/publications";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 async function handler(request: Request) {
@@ -15,6 +16,7 @@ async function handler(request: Request) {
     getEvaluations,
     getAnswers,
     getAnswerEvaluations,
+    getPublications,
     adminToken: () => process.env.ADMIN_API_TOKEN,
     reportError: (_error, requestId) =>
       console.error(JSON.stringify({ event: "admin_api_failure", requestId })),

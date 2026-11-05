@@ -29,7 +29,7 @@ export class AnswerService {
       base = await knowledge.index(retrieval.indexBuildId);
     let profileHash = null;
     if (retrieval.vectorIndexId) {
-      const vector = await this.vectors.get(retrieval.vectorIndexId);
+      const vector = await this.vectors.configuredIndex(retrieval.vectorIndexId);
       if (vector.indexBuildId !== base.id || vector.state !== "ready")
         throw new RetrievalError(422, "ANSWER_VECTOR_MISMATCH");
       profileHash = vector.profileHash;

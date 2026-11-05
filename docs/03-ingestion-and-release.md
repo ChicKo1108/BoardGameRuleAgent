@@ -1,5 +1,7 @@
 # 入库、切分与知识发布
 
+发布治理后端已实现，实际 API、门禁与回滚边界见 [知识发布手册](15-knowledge-publication.md)。下述状态链是业务流程概览；实际实现分别使用不可变知识快照、索引/评测状态、发布记录和当前指针，不使用一个可任意修改的总状态字段。
+
 ## 流程及状态
 
 文档：uploaded → parsing → awaiting_review → approved。

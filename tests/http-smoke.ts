@@ -22,7 +22,15 @@ import { testDatabase } from "./helpers/database.js";
 
 import { embeddingServer } from "./helpers/embedding.js";
 import { chatServer } from "./helpers/chat.js";
-const chatHttp = await chatServer();
+import {
+  publicationCases,
+  publicationReply,
+  publicationPolicy,
+  passingReview,
+} from "./helpers/publication.js";
+// Synthetic deployment identity; shared by the isolated HTTP server and workers.
+process.env.APP_REVISION = "0".repeat(40);
+const chatHttp = await chatServer(publicationReply);
 const embeddingHttp = await embeddingServer();
 const fixture = await testDatabase();
 await fixture.db.runMigrations();
@@ -463,6 +471,141 @@ try {
       "PASS production HTTP: queued Pi answer evaluation, manual review boundary, immutable report and provenance",
     );
 
+    const acceptanceDataset = await post(
+      `/releases/${release.id}/evaluation-datasets`,
+      {
+        name: "Synthetic publication holdout",
+        revision: "1",
+        cases: publicationCases(rule.id, "Synthetic tile"),
+      },
+    );
+    const policy = await post(`/rulesets/${ruleset.id}/publication-policies`, {
+      idempotencyKey: randomUUID(),
+      datasetId: acceptanceDataset.id,
+      expectedRevision: 0,
+      config: publicationPolicy,
+      note: "Synthetic HTTP acceptance policy",
+    });
+    const acceptanceRetrieval = await post(
+      `/evaluation-datasets/${acceptanceDataset.id}/runs`,
+      {
+        idempotencyKey: randomUUID(),
+        config: {
+          ...answerInput.retrieval,
+          split: "holdout",
+          limit: 6,
+          context: { maxRules: 20, maxChars: 24000 },
+        },
+      },
+      202,
+    );
+    const acceptanceAnswers = await post(
+      `/evaluation-datasets/${acceptanceDataset.id}/answer-evaluations`,
+      {
+        idempotencyKey: randomUUID(),
+        config: { split: "holdout", retrieval: answerInput.retrieval },
+      },
+      202,
+    );
+    let acceptanceReady = false;
+    for (let attempt = 0; attempt < 120; attempt++) {
+      const responses = await Promise.all([
+        fetch(
+          `${base}/api/admin/evaluation-runs/${acceptanceRetrieval.runId}`,
+          { headers },
+        ),
+        fetch(
+          `${base}/api/admin/answer-evaluations/${acceptanceAnswers.evaluationId}`,
+          { headers },
+        ),
+      ]);
+      const states = [];
+      for (const response of responses) {
+        assert.equal(response.status, 200);
+        states.push(JSON.parse(await response.text()).data);
+      }
+      if (
+        states.some(
+          (r) => r.state === "failed" || r.state === "completed_with_errors",
+        )
+      )
+        throw new Error(JSON.stringify(states));
+      if (
+        states[0].state === "completed" &&
+        states[1].state === "awaiting_review"
+      ) {
+        acceptanceReady = true;
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    assert.ok(acceptanceReady, "Publication evaluations did not finish");
+    const acceptanceCasesResponse = await fetch(
+      `${base}/api/admin/answer-evaluations/${acceptanceAnswers.evaluationId}/cases`,
+      { headers },
+    );
+    assert.equal(acceptanceCasesResponse.status, 200);
+    const acceptanceCases = JSON.parse(
+      await acceptanceCasesResponse.text(),
+    ).data;
+    for (const c of acceptanceCases.items)
+      await post(`/answer-evaluation-cases/${c.id}/reviews`, {
+        expectedRevision: 0,
+        review: passingReview,
+      });
+    await post(
+      `/answer-evaluations/${acceptanceAnswers.evaluationId}/seal`,
+      { note: "Synthetic holdout sealed" },
+      200,
+    );
+    const publication = await post("/publications", {
+      idempotencyKey: randomUUID(),
+      policyId: policy.id,
+      answerEvaluationId: acceptanceAnswers.evaluationId,
+      retrievalRunId: acceptanceRetrieval.runId,
+    });
+    assert.equal(publication.passed, true, JSON.stringify(publication.gate));
+    const activated = await post(
+      `/rulesets/${ruleset.id}/publication-transitions`,
+      {
+        idempotencyKey: randomUUID(),
+        expectedRevision: 0,
+        action: "publish",
+        publicationId: publication.id,
+        note: "Synthetic activation",
+      },
+    );
+    assert.equal(activated.revision, 1);
+    await post(`/rulesets/${ruleset.id}/publication-transitions`, {
+      idempotencyKey: randomUUID(),
+      expectedRevision: 1,
+      action: "deactivate",
+      publicationId: null,
+      note: "Synthetic emergency stop",
+    });
+    const restored = await post(
+      `/rulesets/${ruleset.id}/publication-transitions`,
+      {
+        idempotencyKey: randomUUID(),
+        expectedRevision: 2,
+        action: "rollback",
+        publicationId: publication.id,
+        note: "Synthetic rollback",
+      },
+    );
+    assert.equal(restored.revision, 3);
+    const headResponse = await fetch(
+      `${base}/api/admin/rulesets/${ruleset.id}/publication`,
+      { headers },
+    );
+    assert.equal(headResponse.status, 200);
+    assert.equal(
+      JSON.parse(await headResponse.text()).data.publicationId,
+      publication.id,
+    );
+    console.info(
+      "PASS production HTTP: frozen holdout policy, publication gate, atomic activate/deactivate/rollback and audit",
+    );
     console.info(
       "PASS production HTTP: immutable evaluation dataset, async hybrid evaluation, complete evidence metrics, paginated results",
     );

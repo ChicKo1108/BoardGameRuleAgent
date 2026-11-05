@@ -131,6 +131,13 @@ export class VectorService {
       return { vectorIndexId: id };
     });
   }
+  async configuredIndex(id: string) {
+    const index = await this.get(id);
+    if (index.state !== "ready")
+      throw new RetrievalError(409, "VECTOR_INDEX_NOT_READY");
+    this.requireProvider(index.profile);
+    return index;
+  }
   async get(id: string) {
     const [row] = await this.db.query(
       `SELECT v.id,v.index_build_id AS "indexBuildId",v.release_id AS "releaseId",v.state,v.profile,v.profile_hash AS "profileHash",v.attempts,v.error_code AS "errorCode",v.created_at AS "createdAt",v.updated_at AS "updatedAt",(SELECT count(*)::int FROM chunk_embeddings WHERE vector_index_id=v.id) AS "completedChunks",(SELECT count(*)::int FROM retrieval_chunks WHERE build_id=v.index_build_id) AS "totalChunks" FROM vector_indexes v WHERE v.id=$1`,
