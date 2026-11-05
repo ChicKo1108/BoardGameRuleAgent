@@ -1,6 +1,6 @@
 # API 与实施计划
 
-以下表格区分已实现接口与后续规划；实际 schema 以鉴权后的 /api/admin/openapi 为准。混合检索已接通；真实质量评测、发布与问答仍待实现。
+以下表格区分已实现接口与后续规划；实际 schema 以鉴权后的 /api/admin/openapi 为准。混合检索、检索评测和 Pi 管理员问答验收已接通；真实答案质量评测、发布与公众聊天仍待实现。
 
 | 方法与路径 | 用途 | 状态 |
 | --- | --- | --- |
@@ -18,6 +18,8 @@
 | POST /api/admin/index-builds/{id}/vectors | 持久向量构建 | 已实现 |
 | POST /api/admin/vector-indexes/{id}/search | 关键词/向量/混合对照 | 已实现 |
 | GET /api/admin/retrieval-runs/{id} | 检索运行记录 | 已实现 |
+| POST /api/admin/answer-runs | 同步管理员问答验收 | 已实现 |
+| GET /api/admin/answer-runs/{id} 及 /events | 问答结果与审计 | 已实现 |
 | POST /api/admin/releases/{id}/evaluation-datasets | 固定评测集 | 已实现 |
 | POST /api/admin/evaluation-datasets/{id}/runs | 异步检索评测 | 已实现 |
 | GET /api/admin/evaluation-runs/{id} 及 /results | 汇总与逐题记录 | 已实现 |

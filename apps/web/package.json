@@ -15,7 +15,8 @@
     "@boardgame/contracts": "0.1.0",
     "@boardgame/backend": "0.1.0",
     "@boardgame/db": "0.1.0",
-    "typeorm": "1.1.2"
+    "typeorm": "1.1.2",
+    "@boardgame/agent": "0.1.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",

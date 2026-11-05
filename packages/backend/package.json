@@ -16,6 +16,7 @@
     "typeorm": "1.1.2",
     "zod": "^4.0.0",
     "@boardgame/retrieval": "0.1.0",
-    "@boardgame/evaluations": "0.1.0"
+    "@boardgame/evaluations": "0.1.0",
+    "@boardgame/agent": "0.1.0"
   }
 }
