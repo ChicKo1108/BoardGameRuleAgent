@@ -67,6 +67,9 @@ const child = spawn(
     env: {
       ...process.env,
       ADMIN_API_TOKEN: token,
+      PUBLIC_APP_ORIGIN: `http://127.0.0.1:${port}`,
+      PUBLIC_GUEST_DAILY_QUESTIONS: "2",
+      PUBLIC_GLOBAL_DAILY_QUESTIONS: "10",
       CHAT_BASE_URL: chatHttp.config.baseUrl,
       CHAT_API_KEY: chatHttp.config.apiKey,
       CHAT_PROVIDER_ID: chatHttp.config.providerId,
@@ -113,6 +116,41 @@ try {
     await new Promise((r) => setTimeout(r, 250));
   }
   assert.ok(ready, "Web process did not start");
+  assert.equal((await fetch(`${base}/api/session`)).status, 401);
+  assert.equal(
+    (await fetch(`${base}/api/session`, { method: "POST" })).status,
+    403,
+  );
+  const sessionHeaders = { origin: base, "x-boardgame-request": "1" };
+  const minted = await fetch(`${base}/api/session`, {
+    method: "POST",
+    headers: sessionHeaders,
+  });
+  assert.equal(minted.status, 200, await minted.clone().text());
+  const browserCookie = minted.headers.get("set-cookie")!.split(";")[0];
+  assert.match(browserCookie, /boardgame_local_session=/);
+  const current = await fetch(`${base}/api/session`, {
+    headers: { cookie: browserCookie },
+  });
+  assert.equal(current.status, 200);
+  assert.equal(JSON.parse(await current.text()).data.quota.remaining, 2);
+  const logout = await fetch(`${base}/api/session`, {
+    method: "DELETE",
+    headers: { ...sessionHeaders, cookie: browserCookie },
+  });
+  assert.equal(logout.status, 200);
+  assert.equal(
+    (await fetch(`${base}/api/session`, { headers: { cookie: browserCookie } }))
+      .status,
+    401,
+  );
+  const publicSpec = await fetch(`${base}/api/openapi`);
+  assert.equal(publicSpec.status, 200);
+  assert.ok(JSON.parse(await publicSpec.text()).paths["/api/session"]);
+  console.info(
+    "PASS production HTTP: opaque guest cookie, origin protection, quota view, revocation and public OpenAPI",
+  );
+
   assert.equal((await fetch(`${base}/api/admin/games`)).status, 401);
   const headers = {
     authorization: `Bearer ${token}`,

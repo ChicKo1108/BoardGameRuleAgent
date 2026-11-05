@@ -10,6 +10,7 @@ import { RetrievalEvaluations1793836805000 } from "./migrations/1793836805000-Re
 import { AnswerRuns1793836806000 } from "./migrations/1793836806000-AnswerRuns.ts";
 import { AnswerEvaluations1793836807000 } from "./migrations/1793836807000-AnswerEvaluations.ts";
 import { KnowledgePublications1793836808000 } from "./migrations/1793836808000-KnowledgePublications.ts";
+import { GuestSessions1793836809000 } from "./migrations/1793836809000-GuestSessions.ts";
 export * from "./entities.ts";
 export * from "./knowledge-repository.ts";
 
@@ -35,6 +36,7 @@ export function createDataSource(databaseUrl: string): DataSource {
       AnswerRuns1793836806000,
       AnswerEvaluations1793836807000,
       KnowledgePublications1793836808000,
+      GuestSessions1793836809000,
     ],
     migrationsTransactionMode: "all",
     uuidExtension: "pgcrypto",
