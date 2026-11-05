@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { evidenceScore } from "./evaluations.ts";
+import { lexicalRanker } from "./knowledge.ts";
 export const config = z.strictObject({
+  ranker: lexicalRanker.default("ts-rank-cd-v1"),
   split: z.literal("development").default("development"),
   queryMode: z
     .enum(["current_question", "annotated_query"])

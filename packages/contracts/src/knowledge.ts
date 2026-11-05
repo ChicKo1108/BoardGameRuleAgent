@@ -57,7 +57,11 @@ export const manifestSchema = z.object({
   ),
 });
 export type KnowledgeManifest = z.infer<typeof manifestSchema>;
-export const lexicalConfigSchema = z.strictObject({
+export const lexicalRanker = z.enum(["ts-rank-cd-v1", "bm25-v1"]);
+export const indexBuildInput = z.strictObject({
+  ranker: lexicalRanker.default("ts-rank-cd-v1"),
+});
+const legacyLexicalConfig = z.strictObject({
   schemaVersion: z.literal(1),
   method: z.literal("lexical"),
   chunker: z.literal("complete-rule-v1"),
@@ -65,6 +69,13 @@ export const lexicalConfigSchema = z.strictObject({
   icuVersion: z.string(),
   maxRuleChars: z.literal(8000),
 });
+export const lexicalConfigSchema = z.union([
+  legacyLexicalConfig,
+  legacyLexicalConfig.extend({
+    schemaVersion: z.literal(2),
+    ranker: z.literal("bm25-v1"),
+  }),
+]);
 export const indexBuildResult = z.object({
   id: uuid,
   releaseId: uuid,

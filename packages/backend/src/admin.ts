@@ -459,10 +459,10 @@ export const operations: Operation[] = [
   operation(
     "POST",
     "/releases/{id}/indexes",
-    "构建完整规则的中文关键词索引（幂等）",
-    s.empty,
+    "构建完整规则的中文关键词索引（幂等，可选择 BM25）",
+    k.indexBuildInput,
     k.indexBuildResult,
-    (c) => new KnowledgeIndexService(c.db).build(c.id, c.requestId),
+    (c, data) => new KnowledgeIndexService(c.db).build(c.id, c.requestId, data),
     201,
   ),
   operation(

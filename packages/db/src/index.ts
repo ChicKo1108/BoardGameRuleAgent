@@ -14,6 +14,7 @@ import { GuestSessions1793836809000 } from "./migrations/1793836809000-GuestSess
 import { PublicConversations1793836810000 } from "./migrations/1793836810000-PublicConversations.ts";
 import { WechatAccounts1793836811000 } from "./migrations/1793836811000-WechatAccounts.ts";
 import { KnowledgeCuration1793836812000 } from "./migrations/1793836812000-KnowledgeCuration.ts";
+import { Bm25Retrieval1793836813000 } from "./migrations/1793836813000-Bm25Retrieval.ts";
 export * from "./entities.ts";
 export * from "./knowledge-repository.ts";
 
@@ -43,6 +44,7 @@ export function createDataSource(databaseUrl: string): DataSource {
       PublicConversations1793836810000,
       WechatAccounts1793836811000,
       KnowledgeCuration1793836812000,
+      Bm25Retrieval1793836813000,
     ],
     migrationsTransactionMode: "all",
     uuidExtension: "pgcrypto",
