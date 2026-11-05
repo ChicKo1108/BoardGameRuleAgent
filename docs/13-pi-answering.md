@@ -28,7 +28,7 @@
 }
 ```
 
-hybrid/vector 模式指定同一基础索引的 ready vectorIndexId；lexical 必须为 null。检索参数只能由本管理员接口选择，未来公众请求将由服务端发布配置提供。history 最多 10 条 user/assistant 文字消息，作为本次验收的上下文数据，不能传 system 或工具消息；历史答案不是证据。本阶段不保存公众会话，也尚未实现自动对话指代改写。
+hybrid/vector 模式指定同一基础索引的 ready vectorIndexId；lexical 必须为 null。检索参数只能由本管理员接口选择，未来公众请求将由服务端发布配置提供。history 最多 10 条 user/assistant 文字消息（单条上限现为 12000 字符，见公众问答文档），作为本次验收的上下文数据，不能传 system 或工具消息；历史答案不是证据。本阶段不保存公众会话，也尚未实现自动对话指代改写。
 
 `GET /api/admin/answer-runs/{id}` 查看状态、输入、配置和结果；`GET /api/admin/answer-runs/{id}/events?limit=25&offset=0` 查看分页审计；实际结构见 OpenAPI。相同 key+规范化输入只启动一次，重复请求返回同一运行（并发时可能仍为 running），改变输入返回 409。即使服务失败，同 key 也不会自动重新消费模型；显式重测用新 key。
 
@@ -70,7 +70,7 @@ needs_context 和 insufficient_evidence 的正文使用服务端固定措辞、�
 
 记录与最终结果不可覆盖，事件按序追加。重复请求通过数据库锁和 idempotency key 防止并发重复执行；这不代表供应商计费 exactly-once。进程崩溃可发生在外部调用后、结果提交前，不能自动重做。到达运行时限加 30 秒宽限后，GET 会把遗留 running 标记 failed/ANSWER_RUN_EXPIRED，迟到事件/结果不可覆盖。当前没有独立过期清理 Worker，未访问的过期行保留 running 存储状态直到读取。
 
-生产部署应允许同步请求至少覆盖预算与数据库收尾时间；本阶段未接客户端进度 SSE、异步聊天执行或 serverless 平台托管。发布治理已实现，见 [发布手册](15-knowledge-publication.md)；公众会话、身份额度、Sentry 和 Swagger UI 仍待完成。回答评测与人工复核已实现，见 [回答评测手册](14-answer-evaluations.md)；真实质量验收仍待完成。
+生产部署应允许同步请求至少覆盖预算与数据库收尾时间；本阶段未接客户端进度 SSE、异步聊天执行或 serverless 平台托管。发布治理已实现，见 [发布手册](15-knowledge-publication.md)；游客公众会话与问题额度已实现；微信登录、Sentry 和 Swagger UI 仍待完成。回答评测与人工复核已实现，见 [回答评测手册](14-answer-evaluations.md)；真实质量验收仍待完成。
 
 ## 已验证与待验证
 

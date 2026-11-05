@@ -45,7 +45,7 @@ export const history = z
   .array(
     z.strictObject({
       role: z.enum(["user", "assistant"]),
-      content: text(4000),
+      content: text(12000),
     }),
   )
   .max(10);

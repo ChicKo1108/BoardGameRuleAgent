@@ -632,6 +632,78 @@ try {
       },
     );
     assert.equal(restored.revision, 3);
+    const guest = await fetch(`${base}/api/session`, {
+      method: "POST",
+      headers: sessionHeaders,
+    });
+    assert.equal(guest.status, 200);
+    const guestCookie = guest.headers.get("set-cookie")!.split(";")[0];
+    const guestHeaders = {
+      ...sessionHeaders,
+      cookie: guestCookie,
+      "content-type": "application/json",
+    };
+    const createdConversation = await fetch(`${base}/api/conversations`, {
+      method: "POST",
+      headers: guestHeaders,
+      body: JSON.stringify({
+        idempotencyKey: randomUUID(),
+        rulesetId: ruleset.id,
+      }),
+    });
+    assert.equal(
+      createdConversation.status,
+      200,
+      await createdConversation.clone().text(),
+    );
+    const conversation = JSON.parse(await createdConversation.text()).data;
+    const messageInput = {
+      idempotencyKey: randomUUID(),
+      expectedRevision: 0,
+      question: "Synthetic tile",
+    };
+    const publicAnswerResponse = await fetch(
+      `${base}/api/conversations/${conversation.id}/messages`,
+      {
+        method: "POST",
+        headers: guestHeaders,
+        body: JSON.stringify(messageInput),
+      },
+    );
+    assert.equal(
+      publicAnswerResponse.status,
+      200,
+      await publicAnswerResponse.clone().text(),
+    );
+    const publicAnswer = JSON.parse(await publicAnswerResponse.text()).data;
+    assert.equal(publicAnswer.state, "completed", JSON.stringify(publicAnswer));
+    assert.equal(publicAnswer.publicationId, publication.id);
+    assert.equal(publicAnswer.answer.citations[0].sources[0].blockId, block.id);
+    const callsBeforeRetry = chatHttp.requests.length;
+    const retriedPublic = await fetch(
+      `${base}/api/conversations/${conversation.id}/messages`,
+      {
+        method: "POST",
+        headers: guestHeaders,
+        body: JSON.stringify(messageInput),
+      },
+    );
+    assert.equal(retriedPublic.status, 200);
+    assert.equal(chatHttp.requests.length, callsBeforeRetry);
+    const history = await fetch(
+      `${base}/api/conversations/${conversation.id}/messages`,
+      { headers: { cookie: guestCookie } },
+    );
+    assert.equal(history.status, 200);
+    assert.equal(JSON.parse(await history.text()).data.total, 1);
+    const allowanceView = await fetch(`${base}/api/session`, {
+      headers: { cookie: guestCookie },
+    });
+    assert.equal(JSON.parse(await allowanceView.text()).data.quota.used, 1);
+    console.info(
+      "PASS production HTTP: scoped public conversation, published hybrid answer, real history, quota and idempotent retry",
+    );
+
     const headResponse = await fetch(
       `${base}/api/admin/rulesets/${ruleset.id}/publication`,
       { headers },

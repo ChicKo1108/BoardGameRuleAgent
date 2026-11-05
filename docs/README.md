@@ -11,6 +11,7 @@
 | [RAG 设计](04-rag-and-answering.md) | 检索流程、Agent 工具、证据和答案 |
 | [评测与实验](05-evaluation.md) | 数据集格式、实验矩阵、指标和门禁 |
 | [API 与实施计划](06-api-and-roadmap.md) | API、后台页面、开发里程碑 |
+| [公众问答与历史](17-public-conversations.md) | 已发布范围、服务端历史、消费额度、持久结果与恢复 |
 | [游客会话与额度](16-guest-sessions-and-allowances.md) | 随机凭证、撤销、跨站保护、持久额度与并发 |
 | [知识发布与回滚](15-knowledge-publication.md) | 冻结验收策略、门禁、完整版本切换、停用及回归 |
 | [回答评测与人工复核](14-answer-evaluations.md) | 原始问题执行、逐题复核、不可变报告与故障恢复 |
